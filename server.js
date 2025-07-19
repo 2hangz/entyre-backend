@@ -18,6 +18,10 @@ app.use('/api/videos', videoRoutes);
 app.use('/api/banners', bannerRoutes);
 app.use('/images', express.static(path.join(__dirname, 'public/images')));
 
+app.get('/', (req, res) => {
+    res.send('Welcome to the ENTYRE backend API!');
+  });
+  
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
