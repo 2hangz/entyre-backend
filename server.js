@@ -12,11 +12,14 @@ app.use(express.json());
 const articleRoutes = require('./routes/articles');
 const videoRoutes = require('./routes/videos');
 const bannerRoutes = require('./routes/banners');
+const filesRouter = require('./routes/files');
 
 app.use('/api/articles', articleRoutes);
 app.use('/api/videos', videoRoutes);
 app.use('/api/banners', bannerRoutes);
+app.use('/api', filesRouter);
 app.use('/images', express.static(path.join(__dirname, 'public/images')));
+app.use('/data', express.static(path.join(__dirname, 'data')));
 
 app.get('/', (req, res) => {
     res.send('Welcome to the ENTYRE backend API!');
