@@ -1,15 +1,26 @@
 
-require('dotenv').config();
-
 const mongoose = require('mongoose');
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB connected'))
-  .catch(err => console.error('MongoDB connection error:', err));
+const dotenv = require('dotenv');
 
-const db = mongoose.connection;
-db.on('error', console.error.bind(console, 'MongoDB connection error:'));
-db.once('open', () => {
-  console.log('Connected to MongoDB Atlas');
-});
+
+dotenv.config();
+
+const mongoURI = process.env.MONGODB_URI;
+
+
+if (!mongoURI) {
+  console.error('❌ Error: MONGODB_URI is not defined in .env');
+  process.exit(1);
+}
+
+mongoose.connect(mongoURI, {
+})
+  .then(() => {
+    console.log('✅ Connected to MongoDB Atlas');
+  })
+  .catch((error) => {
+    console.error('❌ MongoDB connection error:', error.message);
+    process.exit(1); 
+  });
 
 module.exports = mongoose;
