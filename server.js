@@ -1,8 +1,7 @@
 const express = require('express');
 const cors = require('cors');
-const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
-
+require('./db/mongoose');
 const app = express();
 const PORT = 3001;
 
@@ -19,7 +18,7 @@ app.use('/api/videos', videoRoutes);
 app.use('/api/banners', bannerRoutes);
 app.use('/api', filesRouter);
 app.use('/images', express.static(path.join(__dirname, 'public/images')));
-app.use('/data', express.static(path.join(__dirname, 'data')));
+//app.use('/data', express.static(path.join(__dirname, 'data')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.get('/', (req, res) => {

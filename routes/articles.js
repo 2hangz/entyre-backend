@@ -2,176 +2,97 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const Article = require('../models/Article');
+
 const router = express.Router();
-const db = require('../db/connection');
 
-const UPLOAD_DIR = path.join(__dirname, '../uploads/');
-
-// Ensure uploads directory exists
+const UPLOAD_DIR = path.join(__dirname, '../uploads');
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
 const upload = multer({ dest: UPLOAD_DIR });
 
-// Serve static files for uploaded images
-router.use('/uploads', express.static(UPLOAD_DIR));
-
-// GET all articles from database
-router.get('/', (req, res) => {
-  const query = 'SELECT * FROM articles ORDER BY id DESC';
-
-  db.all(query, [], (err, rows) => {
-    if (err) {
-      console.error('❌ Failed to query articles:', err.message);
-      return res.status(500).json({ error: 'Database error' });
-    }
-
-    res.json(rows);
-  });
-});
-
-// GET single article from database
-router.get('/:id', (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
-
-  const query = 'SELECT * FROM articles WHERE id = ?';
-  db.get(query, [id], (err, row) => {
-    if (err) {
-      console.error('❌ Failed to get article:', err.message);
-      return res.status(500).json({ error: 'Database error' });
-    }
-    if (!row) return res.status(404).json({ error: 'Not found' });
-    res.json(row);
-  });
-});
-
-// POST /api/articles
-router.post('/', upload.single('file'), (req, res) => {
-  console.log('📥 Received upload request:', req.body);
-  console.log('📎 Uploaded file:', req.file);
-
-  const { title, content } = req.body;
-  const file = req.file;
-  const imageUrl = file ? `/uploads/${file.filename}` : null;
-
-  if (!title || !content) {
-    if (file) fs.unlinkSync(file.path);
-    return res.status(400).json({ error: 'Title and content are required' });
+// 🔹 GET 所有文章
+router.get('/', async (req, res) => {
+  try {
+    const articles = await Article.find().sort({ createdAt: -1 });
+    res.json(articles);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch articles' });
   }
-
-  const query = `
-    INSERT INTO articles (title, content, imageUrl)
-    VALUES (?, ?, ?)
-  `;
-  const values = [title, content, imageUrl];
-
-  db.run(query, values, function (err) {
-    if (err) {
-      console.error('❌ Failed to insert:', err.message);
-      if (file) fs.unlinkSync(file.path);
-      return res.status(500).json({ error: 'Database insert error' });
-    }
-
-    console.log('✅ Successfully inserted article ID:', this.lastID);
-    res.status(201).json({
-      id: this.lastID,
-      title,
-      content,
-      imageUrl,
-    });
-  });
 });
 
-// PUT update article in database
-router.put('/:id', upload.single('file'), (req, res) => {
-  const { title, content } = req.body;
-  const id = parseInt(req.params.id, 10);
-  const file = req.file;
-
-  if (isNaN(id)) {
-    if (file) fs.unlinkSync(file.path);
-    return res.status(400).json({ error: 'Invalid ID' });
+// 🔹 GET 单篇文章
+router.get('/:id', async (req, res) => {
+  try {
+    const article = await Article.findById(req.params.id);
+    if (!article) return res.status(404).json({ error: 'Article not found' });
+    res.json(article);
+  } catch (err) {
+    res.status(500).json({ error: 'Error fetching article' });
   }
+});
 
-  // First, get the existing article to check for old image
-  db.get('SELECT * FROM articles WHERE id = ?', [id], (err, article) => {
-    if (err) {
-      if (file) fs.unlinkSync(file.path);
-      console.error('❌ Failed to get article:', err.message);
-      return res.status(500).json({ error: 'Database error' });
-    }
-    if (!article) {
-      if (file) fs.unlinkSync(file.path);
-      return res.status(404).json({ error: 'Not found' });
-    }
+// 🔹 POST 新建文章
+router.post('/', upload.single('file'), async (req, res) => {
+  try {
+    const { title, content } = req.body;
+    const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
-    let newImageUrl = article.imageUrl;
-    if (file) {
-      // Remove old image if exists
+    const newArticle = new Article({ title, content, imageUrl });
+    const saved = await newArticle.save();
+    res.status(201).json(saved);
+  } catch (err) {
+    res.status(400).json({ error: 'Failed to create article' });
+  }
+});
+
+// 🔹 PUT 更新文章
+router.put('/:id', upload.single('file'), async (req, res) => {
+  try {
+    const { title, content } = req.body;
+    const article = await Article.findById(req.params.id);
+    if (!article) return res.status(404).json({ error: 'Article not found' });
+
+    // 如果有新图，删除旧图
+    if (req.file) {
       if (article.imageUrl) {
         const oldPath = path.join(UPLOAD_DIR, path.basename(article.imageUrl));
-        if (fs.existsSync(oldPath)) {
-          try { fs.unlinkSync(oldPath); } catch (e) {}
-        }
+        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
       }
-      newImageUrl = `/uploads/${file.filename}`;
+      article.imageUrl = `/uploads/${req.file.filename}`;
     }
 
-    const updatedTitle = title !== undefined ? title : article.title;
-    const updatedContent = content !== undefined ? content : article.content;
+    article.title = title ?? article.title;
+    article.content = content ?? article.content;
 
-    const updateQuery = `
-      UPDATE articles
-      SET title = ?, content = ?, imageUrl = ?
-      WHERE id = ?
-    `;
-    db.run(updateQuery, [updatedTitle, updatedContent, newImageUrl, id], function (updateErr) {
-      if (updateErr) {
-        if (file) fs.unlinkSync(file.path);
-        console.error('❌ Failed to update article:', updateErr.message);
-        return res.status(500).json({ error: 'Database update error' });
-      }
-      res.json({
-        id,
-        title: updatedTitle,
-        content: updatedContent,
-        imageUrl: newImageUrl,
-      });
-    });
-  });
+    const updated = await article.save();
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ error: 'Failed to update article' });
+  }
 });
 
-// DELETE article from database
-router.delete('/:id', (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
+// 🔹 DELETE 删除文章
+router.delete('/:id', async (req, res) => {
+  try {
+    const article = await Article.findByIdAndDelete(req.params.id);
+    if (!article) return res.status(404).json({ error: 'Article not found' });
 
-  // First, get the article to check for image
-  db.get('SELECT * FROM articles WHERE id = ?', [id], (err, article) => {
-    if (err) {
-      console.error('❌ Failed to get article:', err.message);
-      return res.status(500).json({ error: 'Database error' });
-    }
-    if (!article) return res.status(404).json({ error: 'Not found' });
-
-    // Remove image file if exists
+    // 删除图片文件
     if (article.imageUrl) {
       const imgPath = path.join(UPLOAD_DIR, path.basename(article.imageUrl));
-      if (fs.existsSync(imgPath)) {
-        try { fs.unlinkSync(imgPath); } catch (e) {}
-      }
+      if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
     }
 
-    db.run('DELETE FROM articles WHERE id = ?', [id], function (deleteErr) {
-      if (deleteErr) {
-        console.error('❌ Failed to delete article:', deleteErr.message);
-        return res.status(500).json({ error: 'Database delete error' });
-      }
-      res.json({ message: 'Deleted', deleted: article });
-    });
-  });
+    res.json({ message: 'Deleted successfully', article });
+  } catch (err) {
+    res.status(400).json({ error: 'Failed to delete article' });
+  }
 });
+
+// 🔹 图片静态资源
+router.use('/uploads', express.static(UPLOAD_DIR));
 
 module.exports = router;
