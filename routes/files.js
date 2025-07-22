@@ -7,7 +7,6 @@ const router = express.Router();
 
 const dataDir = path.join(__dirname, '../data');
 
-// 列出所有 Excel 文件
 router.get('/files', (req, res) => {
   fs.readdir(dataDir, (err, files) => {
     if (err) {

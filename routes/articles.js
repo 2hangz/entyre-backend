@@ -13,7 +13,7 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 
 const upload = multer({ dest: UPLOAD_DIR });
 
-// 🔹 GET 所有文章
+
 router.get('/', async (req, res) => {
   try {
     const articles = await Article.find().sort({ createdAt: -1 });
@@ -23,7 +23,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-// 🔹 GET 单篇文章
 router.get('/:id', async (req, res) => {
   try {
     const article = await Article.findById(req.params.id);
@@ -34,7 +33,6 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// 🔹 POST 新建文章
 router.post('/', upload.single('file'), async (req, res) => {
   try {
     const { title, content } = req.body;
@@ -48,14 +46,13 @@ router.post('/', upload.single('file'), async (req, res) => {
   }
 });
 
-// 🔹 PUT 更新文章
 router.put('/:id', upload.single('file'), async (req, res) => {
   try {
     const { title, content } = req.body;
     const article = await Article.findById(req.params.id);
     if (!article) return res.status(404).json({ error: 'Article not found' });
 
-    // 如果有新图，删除旧图
+    
     if (req.file) {
       if (article.imageUrl) {
         const oldPath = path.join(UPLOAD_DIR, path.basename(article.imageUrl));
@@ -74,13 +71,12 @@ router.put('/:id', upload.single('file'), async (req, res) => {
   }
 });
 
-// 🔹 DELETE 删除文章
+// DELETE
 router.delete('/:id', async (req, res) => {
   try {
     const article = await Article.findByIdAndDelete(req.params.id);
     if (!article) return res.status(404).json({ error: 'Article not found' });
 
-    // 删除图片文件
     if (article.imageUrl) {
       const imgPath = path.join(UPLOAD_DIR, path.basename(article.imageUrl));
       if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
@@ -92,7 +88,6 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// 🔹 图片静态资源
 router.use('/uploads', express.static(UPLOAD_DIR));
 
 module.exports = router;
