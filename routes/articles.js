@@ -3,8 +3,8 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const router = express.Router();
+const db = require('../db/connection');
 
-const DATA_FILE = path.join(__dirname, '../data/articles.json');
 const UPLOAD_DIR = path.join(__dirname, '../uploads/');
 
 // Ensure uploads directory exists
@@ -12,122 +12,166 @@ if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
-// Helper: Load articles from file
-function loadArticles() {
-  try {
-    if (!fs.existsSync(DATA_FILE)) return [];
-    const data = fs.readFileSync(DATA_FILE, 'utf-8');
-    return JSON.parse(data);
-  } catch (err) {
-    console.error('Failed to load articles:', err);
-    return [];
-  }
-}
-
-// Helper: Save articles to file
-function saveArticles(articles) {
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(articles, null, 2), 'utf-8');
-  } catch (err) {
-    console.error('Failed to save articles:', err);
-  }
-}
-
 const upload = multer({ dest: UPLOAD_DIR });
 
 // Serve static files for uploaded images
 router.use('/uploads', express.static(UPLOAD_DIR));
 
-// GET all articles
+// GET all articles from database
 router.get('/', (req, res) => {
-  const articles = loadArticles();
-  res.json(articles);
+  const query = 'SELECT * FROM articles ORDER BY id DESC';
+
+  db.all(query, [], (err, rows) => {
+    if (err) {
+      console.error('❌ Failed to query articles:', err.message);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    res.json(rows);
+  });
 });
 
-// GET single article
+// GET single article from database
 router.get('/:id', (req, res) => {
-  const articles = loadArticles();
-  const id = req.params.id;
-  const article = articles.find(a => a.id === id);
-  if (!article) return res.status(404).json({ error: 'Not found' });
-  res.json(article);
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
+
+  const query = 'SELECT * FROM articles WHERE id = ?';
+  db.get(query, [id], (err, row) => {
+    if (err) {
+      console.error('❌ Failed to get article:', err.message);
+      return res.status(500).json({ error: 'Database error' });
+    }
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    res.json(row);
+  });
 });
 
-// POST new article (with optional file)
+// POST /api/articles
 router.post('/', upload.single('file'), (req, res) => {
+  console.log('📥 Received upload request:', req.body);
+  console.log('📎 Uploaded file:', req.file);
+
   const { title, content } = req.body;
   const file = req.file;
+  const imageUrl = file ? `/uploads/${file.filename}` : null;
 
   if (!title || !content) {
-    // Remove uploaded file if present
     if (file) fs.unlinkSync(file.path);
-    return res.status(400).json({ error: 'Title and content required' });
+    return res.status(400).json({ error: 'Title and content are required' });
   }
 
-  const articles = loadArticles();
+  const query = `
+    INSERT INTO articles (title, content, imageUrl)
+    VALUES (?, ?, ?)
+  `;
+  const values = [title, content, imageUrl];
 
-  const newArticle = {
-    id: Date.now().toString(),
-    title,
-    content,
-    imageUrl: file ? `/uploads/${file.filename}` : null,
-  };
+  db.run(query, values, function (err) {
+    if (err) {
+      console.error('❌ Failed to insert:', err.message);
+      if (file) fs.unlinkSync(file.path);
+      return res.status(500).json({ error: 'Database insert error' });
+    }
 
-  articles.push(newArticle);
-  saveArticles(articles);
-  res.status(201).json(newArticle);
+    console.log('✅ Successfully inserted article ID:', this.lastID);
+    res.status(201).json({
+      id: this.lastID,
+      title,
+      content,
+      imageUrl,
+    });
+  });
 });
 
-// PUT update article
+// PUT update article in database
 router.put('/:id', upload.single('file'), (req, res) => {
   const { title, content } = req.body;
-  const id = req.params.id;
+  const id = parseInt(req.params.id, 10);
   const file = req.file;
 
-  const articles = loadArticles();
-  const index = articles.findIndex(a => a.id === id);
-  if (index === -1) {
+  if (isNaN(id)) {
     if (file) fs.unlinkSync(file.path);
-    return res.status(404).json({ error: 'Not found' });
+    return res.status(400).json({ error: 'Invalid ID' });
   }
 
-  // Optional file update
-  if (file) {
-    // Remove old image if exists
-    if (articles[index].imageUrl) {
-      const oldPath = path.join(UPLOAD_DIR, path.basename(articles[index].imageUrl));
-      if (fs.existsSync(oldPath)) {
-        try { fs.unlinkSync(oldPath); } catch (e) {}
-      }
+  // First, get the existing article to check for old image
+  db.get('SELECT * FROM articles WHERE id = ?', [id], (err, article) => {
+    if (err) {
+      if (file) fs.unlinkSync(file.path);
+      console.error('❌ Failed to get article:', err.message);
+      return res.status(500).json({ error: 'Database error' });
     }
-    articles[index].imageUrl = `/uploads/${file.filename}`;
-  }
+    if (!article) {
+      if (file) fs.unlinkSync(file.path);
+      return res.status(404).json({ error: 'Not found' });
+    }
 
-  if (title) articles[index].title = title;
-  if (content) articles[index].content = content;
+    let newImageUrl = article.imageUrl;
+    if (file) {
+      // Remove old image if exists
+      if (article.imageUrl) {
+        const oldPath = path.join(UPLOAD_DIR, path.basename(article.imageUrl));
+        if (fs.existsSync(oldPath)) {
+          try { fs.unlinkSync(oldPath); } catch (e) {}
+        }
+      }
+      newImageUrl = `/uploads/${file.filename}`;
+    }
 
-  saveArticles(articles);
-  res.json(articles[index]);
+    const updatedTitle = title !== undefined ? title : article.title;
+    const updatedContent = content !== undefined ? content : article.content;
+
+    const updateQuery = `
+      UPDATE articles
+      SET title = ?, content = ?, imageUrl = ?
+      WHERE id = ?
+    `;
+    db.run(updateQuery, [updatedTitle, updatedContent, newImageUrl, id], function (updateErr) {
+      if (updateErr) {
+        if (file) fs.unlinkSync(file.path);
+        console.error('❌ Failed to update article:', updateErr.message);
+        return res.status(500).json({ error: 'Database update error' });
+      }
+      res.json({
+        id,
+        title: updatedTitle,
+        content: updatedContent,
+        imageUrl: newImageUrl,
+      });
+    });
+  });
 });
 
-// DELETE article
+// DELETE article from database
 router.delete('/:id', (req, res) => {
-  const id = req.params.id;
-  const articles = loadArticles();
-  const index = articles.findIndex(a => a.id === id);
-  if (index === -1) return res.status(404).json({ error: 'Not found' });
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
 
-  // Remove image file if exists
-  const deleted = articles.splice(index, 1)[0];
-  if (deleted.imageUrl) {
-    const imgPath = path.join(UPLOAD_DIR, path.basename(deleted.imageUrl));
-    if (fs.existsSync(imgPath)) {
-      try { fs.unlinkSync(imgPath); } catch (e) {}
+  // First, get the article to check for image
+  db.get('SELECT * FROM articles WHERE id = ?', [id], (err, article) => {
+    if (err) {
+      console.error('❌ Failed to get article:', err.message);
+      return res.status(500).json({ error: 'Database error' });
     }
-  }
+    if (!article) return res.status(404).json({ error: 'Not found' });
 
-  saveArticles(articles);
-  res.json({ message: 'Deleted', deleted });
+    // Remove image file if exists
+    if (article.imageUrl) {
+      const imgPath = path.join(UPLOAD_DIR, path.basename(article.imageUrl));
+      if (fs.existsSync(imgPath)) {
+        try { fs.unlinkSync(imgPath); } catch (e) {}
+      }
+    }
+
+    db.run('DELETE FROM articles WHERE id = ?', [id], function (deleteErr) {
+      if (deleteErr) {
+        console.error('❌ Failed to delete article:', deleteErr.message);
+        return res.status(500).json({ error: 'Database delete error' });
+      }
+      res.json({ message: 'Deleted', deleted: article });
+    });
+  });
 });
 
 module.exports = router;
