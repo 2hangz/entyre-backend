@@ -20,6 +20,7 @@ app.use('/api/banners', bannerRoutes);
 app.use('/api', filesRouter);
 app.use('/images', express.static(path.join(__dirname, 'public/images')));
 app.use('/data', express.static(path.join(__dirname, 'data')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.get('/', (req, res) => {
     res.send('Welcome to the ENTYRE backend API!');
