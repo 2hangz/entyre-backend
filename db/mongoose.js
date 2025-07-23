@@ -9,7 +9,6 @@ const mongoURI = process.env.MONGODB_URI;
 
 
 if (!mongoURI) {
-  console.error('❌ Error: MONGODB_URI is not defined in .env');
   process.exit(1);
 }
 
@@ -19,7 +18,6 @@ mongoose.connect(mongoURI, {
     console.log('✅ Connected to MongoDB Atlas');
   })
   .catch((error) => {
-    console.error('❌ MongoDB connection error:', error.message);
     process.exit(1); 
   });
 
