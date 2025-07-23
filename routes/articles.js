@@ -35,10 +35,10 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', upload.single('file'), async (req, res) => {
   try {
-    const { title, content } = req.body;
+    const { title, summary, content } = req.body;
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
-    const newArticle = new Article({ title, content, imageUrl });
+    const newArticle = new Article({ title, summary, content, imageUrl });
     const saved = await newArticle.save();
     res.status(201).json(saved);
   } catch (err) {
@@ -48,11 +48,10 @@ router.post('/', upload.single('file'), async (req, res) => {
 
 router.put('/:id', upload.single('file'), async (req, res) => {
   try {
-    const { title, content } = req.body;
+    const { title, summary, content } = req.body;
     const article = await Article.findById(req.params.id);
     if (!article) return res.status(404).json({ error: 'Article not found' });
 
-    
     if (req.file) {
       if (article.imageUrl) {
         const oldPath = path.join(UPLOAD_DIR, path.basename(article.imageUrl));
@@ -62,6 +61,7 @@ router.put('/:id', upload.single('file'), async (req, res) => {
     }
 
     article.title = title ?? article.title;
+    article.summary = summary ?? article.summary;
     article.content = content ?? article.content;
 
     const updated = await article.save();
