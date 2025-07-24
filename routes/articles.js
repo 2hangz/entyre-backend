@@ -14,7 +14,6 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 
 const upload = multer({ dest: UPLOAD_DIR });
 
-
 router.get('/', async (req, res) => {
   try {
     const articles = await Article.find().sort({ createdAt: -1 });
@@ -39,12 +38,22 @@ router.post('/', upload.single('file'), async (req, res) => {
     let imageUrl = null;
 
     if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: 'entyre',
-      });
-      imageUrl = result.secure_url;
-
-      fs.unlinkSync(req.file.path);
+      console.log('File received for upload:', req.file);
+      try {
+        const result = await cloudinary.uploader.upload(req.file.path, {
+          folder: 'entyre',
+        });
+        console.log('Cloudinary upload result:', result);
+        imageUrl = result.secure_url;
+      } catch (cloudErr) {
+        console.error('Cloudinary upload error:', cloudErr);
+        imageUrl = `/uploads/${req.file.filename}`;
+      }
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (unlinkErr) {
+        console.error('Failed to delete local file after upload:', unlinkErr);
+      }
     }
 
     const { title, summary, content } = req.body;
