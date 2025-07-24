@@ -7,6 +7,7 @@ const cloudinary = require('../utils/cloudinary');
 
 const router = express.Router();
 
+// 配置临时上传目录
 const UPLOAD_DIR = path.join(__dirname, '../uploads');
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -14,6 +15,7 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 
 const upload = multer({ dest: UPLOAD_DIR });
 
+// 获取全部文章
 router.get('/', async (req, res) => {
   try {
     const articles = await Article.find().sort({ createdAt: -1 });
@@ -23,6 +25,7 @@ router.get('/', async (req, res) => {
   }
 });
 
+// 获取单篇文章
 router.get('/:id', async (req, res) => {
   try {
     const article = await Article.findById(req.params.id);
@@ -33,28 +36,33 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// 创建文章 + 上传图片
 router.post('/', upload.single('file'), async (req, res) => {
   try {
     let imageUrl = null;
+    let imagePublicId = null;
 
     if (req.file) {
       const result = await cloudinary.uploader.upload(req.file.path, {
         folder: 'entyre',
       });
       imageUrl = result.secure_url;
+      imagePublicId = result.public_id;
 
-      fs.unlinkSync(req.file.path);
+      await fs.promises.unlink(req.file.path); // 异步删除临时文件
     }
 
     const { title, summary, content } = req.body;
-    const newArticle = new Article({ title, summary, content, imageUrl });
+    const newArticle = new Article({ title, summary, content, imageUrl, imagePublicId });
     const saved = await newArticle.save();
     res.status(201).json(saved);
   } catch (err) {
+    console.error(err);
     res.status(400).json({ error: 'Failed to create article' });
   }
 });
 
+// 修改文章 + 替换图片
 router.put('/:id', upload.single('file'), async (req, res) => {
   try {
     const { title, summary, content } = req.body;
@@ -62,14 +70,19 @@ router.put('/:id', upload.single('file'), async (req, res) => {
     if (!article) return res.status(404).json({ error: 'Article not found' });
 
     if (req.file) {
-      // If there was a previous image, optionally delete it from Cloudinary here if you store the public_id
-      // Upload new image to Cloudinary
+      // 删除旧图
+      if (article.imagePublicId) {
+        await cloudinary.uploader.destroy(article.imagePublicId);
+      }
+
+      // 上传新图
       const result = await cloudinary.uploader.upload(req.file.path, {
         folder: 'entyre',
       });
-      // Remove local file after upload
-      fs.unlinkSync(req.file.path);
       article.imageUrl = result.secure_url;
+      article.imagePublicId = result.public_id;
+
+      await fs.promises.unlink(req.file.path);
     }
 
     article.title = title ?? article.title;
@@ -79,24 +92,26 @@ router.put('/:id', upload.single('file'), async (req, res) => {
     const updated = await article.save();
     res.json(updated);
   } catch (err) {
+    console.error(err);
     res.status(400).json({ error: 'Failed to update article' });
   }
 });
 
-// DELETE
+// 删除文章 + 删除图片
 router.delete('/:id', async (req, res) => {
   try {
     const article = await Article.findByIdAndDelete(req.params.id);
     if (!article) return res.status(404).json({ error: 'Article not found' });
 
-    // Optionally: If you store Cloudinary public_id, you can delete the image from Cloudinary here
+    if (article.imagePublicId) {
+      await cloudinary.uploader.destroy(article.imagePublicId);
+    }
 
     res.json({ message: 'Deleted successfully', article });
   } catch (err) {
+    console.error(err);
     res.status(400).json({ error: 'Failed to delete article' });
   }
 });
-
-router.use('/uploads', express.static(UPLOAD_DIR));
 
 module.exports = router;

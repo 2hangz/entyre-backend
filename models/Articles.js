@@ -17,7 +17,10 @@ const articleSchema = new mongoose.Schema({
   imageUrl: {
     type: String,
     trim: true
-  }
+  },
+  imagePublicId:{
+    type:String
+  } 
 }, { timestamps: true });
 
 module.exports = mongoose.model('Article', articleSchema);
