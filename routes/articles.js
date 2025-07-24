@@ -3,6 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const Article = require('../models/Articles');
+const cloudinary = require('../utils/cloudinary');
 
 const router = express.Router();
 
@@ -35,9 +36,18 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', upload.single('file'), async (req, res) => {
   try {
-    const { title, summary, content } = req.body;
-    const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
+    let imageUrl = null;
 
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: 'entyre',
+      });
+      imageUrl = result.secure_url;
+
+      fs.unlinkSync(req.file.path);
+    }
+
+    const { title, summary, content } = req.body;
     const newArticle = new Article({ title, summary, content, imageUrl });
     const saved = await newArticle.save();
     res.status(201).json(saved);
