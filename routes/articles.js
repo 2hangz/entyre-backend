@@ -7,7 +7,7 @@ const cloudinary = require('../utils/cloudinary');
 
 const router = express.Router();
 
-// 配置临时上传目录
+// config temporary dir
 const UPLOAD_DIR = path.join(__dirname, '../uploads');
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -15,7 +15,7 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 
 const upload = multer({ dest: UPLOAD_DIR });
 
-// 获取全部文章
+// fetch all articles
 router.get('/', async (req, res) => {
   try {
     const articles = await Article.find().sort({ createdAt: -1 });
@@ -25,7 +25,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// 获取单篇文章
+// fetch single articles
 router.get('/:id', async (req, res) => {
   try {
     const article = await Article.findById(req.params.id);
@@ -36,7 +36,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// 创建文章 + 上传图片
+// create article
 router.post('/', upload.single('file'), async (req, res) => {
   try {
     let imageUrl = null;
@@ -46,7 +46,6 @@ router.post('/', upload.single('file'), async (req, res) => {
       const result = await cloudinary.uploader.upload(req.file.path, {
         folder: 'entyre',
       });
-      console.log('Cloudinary result:', result);
       imageUrl = result.secure_url;
       imagePublicId = result.public_id;
 
@@ -58,12 +57,12 @@ router.post('/', upload.single('file'), async (req, res) => {
     const saved = await newArticle.save();
     res.status(201).json(saved);
   } catch (err) {
-    console.error('Cloudinary upload error:', err.message);
+    console.error(err);
     res.status(400).json({ error: 'Failed to create article' });
   }
 });
 
-// 修改文章 + 替换图片
+// editing
 router.put('/:id', upload.single('file'), async (req, res) => {
   try {
     const { title, summary, content } = req.body;
@@ -71,12 +70,10 @@ router.put('/:id', upload.single('file'), async (req, res) => {
     if (!article) return res.status(404).json({ error: 'Article not found' });
 
     if (req.file) {
-      // 删除旧图
       if (article.imagePublicId) {
         await cloudinary.uploader.destroy(article.imagePublicId);
       }
 
-      // 上传新图
       const result = await cloudinary.uploader.upload(req.file.path, {
         folder: 'entyre',
       });
@@ -98,7 +95,7 @@ router.put('/:id', upload.single('file'), async (req, res) => {
   }
 });
 
-// 删除文章 + 删除图片
+// delete
 router.delete('/:id', async (req, res) => {
   try {
     const article = await Article.findByIdAndDelete(req.params.id);
