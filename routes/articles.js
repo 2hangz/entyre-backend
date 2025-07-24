@@ -46,10 +46,11 @@ router.post('/', upload.single('file'), async (req, res) => {
       const result = await cloudinary.uploader.upload(req.file.path, {
         folder: 'entyre',
       });
+      console.log('Cloudinary result:', result);
       imageUrl = result.secure_url;
       imagePublicId = result.public_id;
 
-      await fs.promises.unlink(req.file.path); // 异步删除临时文件
+      await fs.promises.unlink(req.file.path);
     }
 
     const { title, summary, content } = req.body;
@@ -57,7 +58,7 @@ router.post('/', upload.single('file'), async (req, res) => {
     const saved = await newArticle.save();
     res.status(201).json(saved);
   } catch (err) {
-    console.error(err);
+    console.error('Cloudinary upload error:', err.message);
     res.status(400).json({ error: 'Failed to create article' });
   }
 });
