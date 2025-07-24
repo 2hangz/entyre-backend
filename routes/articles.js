@@ -38,22 +38,12 @@ router.post('/', upload.single('file'), async (req, res) => {
     let imageUrl = null;
 
     if (req.file) {
-      console.log('File received for upload:', req.file);
-      try {
-        const result = await cloudinary.uploader.upload(req.file.path, {
-          folder: 'entyre',
-        });
-        console.log('Cloudinary upload result:', result);
-        imageUrl = result.secure_url;
-      } catch (cloudErr) {
-        console.error('Cloudinary upload error:', cloudErr);
-        imageUrl = `/uploads/${req.file.filename}`;
-      }
-      try {
-        fs.unlinkSync(req.file.path);
-      } catch (unlinkErr) {
-        console.error('Failed to delete local file after upload:', unlinkErr);
-      }
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: 'entyre',
+      });
+      imageUrl = result.secure_url;
+
+      fs.unlinkSync(req.file.path);
     }
 
     const { title, summary, content } = req.body;
@@ -72,11 +62,14 @@ router.put('/:id', upload.single('file'), async (req, res) => {
     if (!article) return res.status(404).json({ error: 'Article not found' });
 
     if (req.file) {
-      if (article.imageUrl) {
-        const oldPath = path.join(UPLOAD_DIR, path.basename(article.imageUrl));
-        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-      }
-      article.imageUrl = `/uploads/${req.file.filename}`;
+      // If there was a previous image, optionally delete it from Cloudinary here if you store the public_id
+      // Upload new image to Cloudinary
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: 'entyre',
+      });
+      // Remove local file after upload
+      fs.unlinkSync(req.file.path);
+      article.imageUrl = result.secure_url;
     }
 
     article.title = title ?? article.title;
@@ -96,10 +89,7 @@ router.delete('/:id', async (req, res) => {
     const article = await Article.findByIdAndDelete(req.params.id);
     if (!article) return res.status(404).json({ error: 'Article not found' });
 
-    if (article.imageUrl) {
-      const imgPath = path.join(UPLOAD_DIR, path.basename(article.imageUrl));
-      if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
-    }
+    // Optionally: If you store Cloudinary public_id, you can delete the image from Cloudinary here
 
     res.json({ message: 'Deleted successfully', article });
   } catch (err) {
