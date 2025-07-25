@@ -12,98 +12,67 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 }
 const upload = multer({ dest: UPLOAD_DIR });
 
-// Fetch all videos
+//fetch all videos
 router.get('/', async (req, res) => {
-  try {
-    const videos = await Video.find().sort({ createdAt: -1 });
-    res.json(videos);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch videos' });
-  }
+        const videos = await Video.find().sort({createdAt:-1});
+        res.json(videos);
 });
 
-// Fetch single video
-router.get('/:id', async (req, res) => {
-  try {
-    const video = await Video.findById(req.params.id);
-    if (!video) return res.status(404).json({ error: 'Video not found' });
-    res.json(video);
-  } catch (err) {
-    res.status(500).json({ error: 'Error fetching video' });
-  }
-});
+//fetch sigle video
+router.get('/:id', async (req, res) =>{
+        const video = await Video.findById(req.params.id);
+        res.json(video);
+})
 
-// Create new video
-router.post('/', upload.single('file'), async (req, res) => {
-  try {
-    let thumbnail = null;
-    let thumbnailPublicId = null;
+//create new video
+router.post('/', upload.single('file'), async(req, res) =>{
+    let thumbnail =null;
+    let thumbnailPublicId =null;
 
-    if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: 'entyre/videosThumbnail'
-      });
-      thumbnail = result.secure_url;
-      thumbnailPublicId = result.public_id;
+    if(req.file){
+        const result = await cloudinary.uploader.upload(req.file.path, {
+            folder: 'entyre/videosThumbnail'
+        });
+        thumbnail = result.secure_url;
+        thumbnailPublicId = result.public_id
 
-      await fs.promises.unlink(req.file.path);
+        await fs.promises.unlink(req.file.path);
     }
 
-    const { title, videoUrl } = req.body;
-    const newVideo = new Video({ title, thumbnail, videoUrl, thumbnailPublicId });
-    const saved = await newVideo.save();
-    res.status(201).json(saved);
-  } catch (err) {
-    console.error(err);
-    res.status(400).json({ error: 'Failed to create video' });
-  }
+    const {title, videoUrl} = req.body;
+    const saved = await new Video({title, thumbnail, videoUrl, thumbnailPublicId}).save();
+    res.json(saved);
 });
 
-// Edit video
+//editing
 router.put('/:id', upload.single('file'), async (req, res) => {
-  try {
     const { title, videoUrl } = req.body;
     const video = await Video.findById(req.params.id);
-    if (!video) return res.status(404).json({ error: 'Video not found' });
+    if (req.file){
+        if (video.thumbnailPublicId) {
+            await cloudinary.uploader.destroy(video.thumbnailPublicId);
+          }
+        const result = await cloudinary.uploader.upload(req.file.path,{folder:'entyre/videosThumbnail'});
+        video.thumbnail = result.secure_url;
+        video.thumbnailPublicId = result.public_id;
 
-    if (req.file) {
-      if (video.thumbnailPublicId) {
-        await cloudinary.uploader.destroy(video.thumbnailPublicId);
-      }
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: 'entyre/videosThumbnail'
-      });
-      video.thumbnail = result.secure_url;
-      video.thumbnailPublicId = result.public_id;
-
-      await fs.promises.unlink(req.file.path);
+        await fs.promises.unlink(req.file.path);
     }
     video.title = title ?? video.title;
     video.videoUrl = videoUrl ?? video.videoUrl;
 
     const updated = await video.save();
     res.json(updated);
-  } catch (err) {
-    console.error(err);
-    res.status(400).json({ error: 'Failed to update video' });
-  }
-});
+})
 
-// Delete video
-router.delete('/:id', async (req, res) => {
-  try {
+//delete
+router.delete('/:id', async (req, res)=>{
     const video = await Video.findByIdAndDelete(req.params.id);
-    if (!video) return res.status(404).json({ error: 'Video not found' });
-
-    if (video.thumbnailPublicId) {
-      await cloudinary.uploader.destroy(video.thumbnailPublicId);
+    if (video.thumbnailPublicId){
+        await cloudinary.uploader.destroy(video.thumbnailPublicId);
+        res.json({ message: 'Deleted successfully', video });
     }
-    res.json({ message: 'Deleted successfully', video });
-  } catch (err) {
-    console.error(err);
-    res.status(400).json({ error: 'Failed to delete video' });
-  }
-});
+})
 
 router.use('/uploads', express.static(UPLOAD_DIR));
 module.exports = router;
