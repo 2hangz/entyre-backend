@@ -1,22 +1,22 @@
 const mongoose = require('../db/mongoose');
 
-const articleSchema = new mongoose.Schema({
+const videoSchema = new mongoose.Schema({
   title: {
     type: String,
     required: true,
     trim: true
   },
-  description: {
+  thumbnail: {
     type: String,
     trim: true
   },
   videoUrl: {
     type: String,
-    required: true
-  },
-  imageUrl: {
-    type: String,
+    required: true,
     trim: true
+  },
+  thumbnailPublicId: {
+    type: String
   }
 }, { timestamps: true });
 
