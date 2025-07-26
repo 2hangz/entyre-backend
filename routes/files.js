@@ -12,15 +12,8 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 }
 const upload = multer({ dest: UPLOAD_DIR });
 
-// fetch all files
-router.get('/files', async (req, res) => {
-    const files = await fs.promises.readdir(UPLOAD_DIR);
-    const excelFiles = files.filter(f => f.endsWith('.xlsx') || f.endsWith('.xls'));
-    res.json(excelFiles);
-});
-
-//create a new file
-router.post('/upload-mcda', upload.single('file'), async (req, res) => {
+// 上传新文件
+router.post('/', upload.single('file'), async (req, res) => {
   try {
     const { title, description } = req.body;
     let fileUrl = null;
@@ -55,7 +48,7 @@ router.post('/upload-mcda', upload.single('file'), async (req, res) => {
 });
 
 // fetch all files
-router.get('/mcda', async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const files = await MCDA.find().sort({ createdAt: -1 });
     res.json(files);
@@ -64,8 +57,8 @@ router.get('/mcda', async (req, res) => {
   }
 });
 
-// fetch single xls
-router.get('/mcda/:id', async (req, res) => {
+// fetch single
+router.get('/:id', async (req, res) => {
   try {
     const file = await MCDA.findById(req.params.id);
     if (!file) return res.status(404).json({ error: 'File not found' });
@@ -76,7 +69,7 @@ router.get('/mcda/:id', async (req, res) => {
 });
 
 // delete
-router.delete('/mcda/:id', async (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     const file = await MCDA.findById(req.params.id);
     if (!file) return res.status(404).json({ error: 'File not found' });
