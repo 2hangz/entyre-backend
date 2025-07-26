@@ -18,6 +18,7 @@ app.use('/api/videos', videoRoutes);
 app.use('/api/banners', bannerRoutes);
 app.use('/api/files', filesRouter);
 app.use('/images', express.static(path.join(__dirname, 'public/images')));
+//app.use('/data', express.static(path.join(__dirname, 'data')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.get('/', (req, res) => {
