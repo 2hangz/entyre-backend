@@ -29,10 +29,10 @@ router.get('/:sectionIndex', async (req, res) => {
   }
 });
 
-// PUT update a section by ID (now supports title)
+// PUT update a section by ID (now supports title and type)
 router.put('/:id', async (req, res) => {
   try {
-    const { content, title } = req.body;
+    const { content, title, type } = req.body;
     if (typeof content !== 'string') {
       return res.status(400).json({ error: 'Content must be a string' });
     }
@@ -40,8 +40,13 @@ router.put('/:id', async (req, res) => {
     if (title !== undefined && typeof title !== 'string') {
       return res.status(400).json({ error: 'Title must be a string' });
     }
+    // type is optional, but if present, must be a string
+    if (type !== undefined && typeof type !== 'string') {
+      return res.status(400).json({ error: 'Type must be a string' });
+    }
     const updateFields = { content, updatedAt: new Date() };
     if (title !== undefined) updateFields.title = title;
+    if (type !== undefined) updateFields.type = type;
     const updated = await MarkdownSection.findByIdAndUpdate(
       req.params.id,
       updateFields,
@@ -55,22 +60,25 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// POST create a new section (for admin use only, now supports title)
+// POST create a new section (for admin use only, now supports title and type)
 router.post('/', async (req, res) => {
   try {
-    const { sectionIndex, content, title } = req.body;
+    const { sectionIndex, content, title, type } = req.body;
     if (typeof sectionIndex !== 'number' || typeof content !== 'string') {
       return res.status(400).json({ error: 'Invalid sectionIndex or content' });
     }
     if (title !== undefined && typeof title !== 'string') {
       return res.status(400).json({ error: 'Title must be a string' });
     }
+    if (type !== undefined && typeof type !== 'string') {
+      return res.status(400).json({ error: 'Type must be a string' });
+    }
     // Prevent duplicate sectionIndex
     const exists = await MarkdownSection.findOne({ sectionIndex });
     if (exists) {
       return res.status(409).json({ error: 'Section with this index already exists' });
     }
-    const newSection = new MarkdownSection({ sectionIndex, content, title });
+    const newSection = new MarkdownSection({ sectionIndex, content, title, type });
     const saved = await newSection.save();
     res.status(201).json(saved);
   } catch (err) {
