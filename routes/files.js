@@ -12,7 +12,7 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 }
 const upload = multer({ dest: UPLOAD_DIR });
 
-// 上传新文件
+// upload new file
 router.post('/', upload.single('file'), async (req, res) => {
   try {
     const { title, description } = req.body;
