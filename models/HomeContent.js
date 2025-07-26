@@ -6,6 +6,10 @@ const MarkdownSectionSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
+  title: {               // ✅ 新增字段
+    type: String,
+    default: ""
+  },
   content: {
     type: String,
     required: true
