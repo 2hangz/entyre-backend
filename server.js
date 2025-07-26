@@ -17,7 +17,7 @@ const mcdaRouter = require('./routes/mcda');
 app.use('/api/articles', articleRoutes);
 app.use('/api/videos', videoRoutes);
 app.use('/api/banners', bannerRoutes);
-app.use('/api', filesRouter);
+app.use('/api/files', filesRouter);
 app.use('api/mcda', mcdaRouter);
 app.use('/images', express.static(path.join(__dirname, 'public/images')));
 //app.use('/data', express.static(path.join(__dirname, 'data')));
