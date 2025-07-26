@@ -15,7 +15,6 @@ const upload = multer({ dest: UPLOAD_DIR });
 // upload new file
 router.post('/', upload.single('file'), async (req, res) => {
   try {
-    const { title, description } = req.body;
     let fileUrl = null;
     let filePublicId = null;
 
@@ -33,8 +32,6 @@ router.post('/', upload.single('file'), async (req, res) => {
     await fs.promises.unlink(req.file.path);
 
     const newMcda = new MCDA({
-      title,
-      description,
       fileUrl,
       filePublicId,
       originalName: req.file.originalname
@@ -50,7 +47,7 @@ router.post('/', upload.single('file'), async (req, res) => {
 // fetch all files
 router.get('/', async (req, res) => {
   try {
-    const files = await MCDA.find().sort({ createdAt: -1 });
+    const files = await MCDA.find();
     res.json(files);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch MCDA files' });
