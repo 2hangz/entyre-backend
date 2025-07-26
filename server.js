@@ -11,12 +11,12 @@ app.use(express.json());
 const articleRoutes = require('./routes/articles');
 const videoRoutes = require('./routes/videos');
 const bannerRoutes = require('./routes/banners');
-const filesRouter = require('./routes/files');
+const mcdaRoutes = require('./routes/mcdaRoutes');
 
 app.use('/api/articles', articleRoutes);
 app.use('/api/videos', videoRoutes);
 app.use('/api/banners', bannerRoutes);
-app.use('/api', filesRouter);
+app.use('/api/files', mcdaRoutes);
 app.use('/images', express.static(path.join(__dirname, 'public/images')));
 //app.use('/data', express.static(path.join(__dirname, 'data')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
