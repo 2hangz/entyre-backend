@@ -29,16 +29,22 @@ router.get('/:sectionIndex', async (req, res) => {
   }
 });
 
-// PUT update a section by ID
+// PUT update a section by ID (now supports title)
 router.put('/:id', async (req, res) => {
   try {
-    const { content } = req.body;
+    const { content, title } = req.body;
     if (typeof content !== 'string') {
       return res.status(400).json({ error: 'Content must be a string' });
     }
+    // title is optional, but if present, must be a string
+    if (title !== undefined && typeof title !== 'string') {
+      return res.status(400).json({ error: 'Title must be a string' });
+    }
+    const updateFields = { content, updatedAt: new Date() };
+    if (title !== undefined) updateFields.title = title;
     const updated = await MarkdownSection.findByIdAndUpdate(
       req.params.id,
-      { content, updatedAt: new Date() },
+      updateFields,
       { new: true }
     );
     if (!updated) return res.status(404).json({ error: 'Section not found' });
@@ -49,19 +55,22 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// POST create a new section (for admin use only)
+// POST create a new section (for admin use only, now supports title)
 router.post('/', async (req, res) => {
   try {
-    const { sectionIndex, content } = req.body;
+    const { sectionIndex, content, title } = req.body;
     if (typeof sectionIndex !== 'number' || typeof content !== 'string') {
       return res.status(400).json({ error: 'Invalid sectionIndex or content' });
+    }
+    if (title !== undefined && typeof title !== 'string') {
+      return res.status(400).json({ error: 'Title must be a string' });
     }
     // Prevent duplicate sectionIndex
     const exists = await MarkdownSection.findOne({ sectionIndex });
     if (exists) {
       return res.status(409).json({ error: 'Section with this index already exists' });
     }
-    const newSection = new MarkdownSection({ sectionIndex, content });
+    const newSection = new MarkdownSection({ sectionIndex, content, title });
     const saved = await newSection.save();
     res.status(201).json(saved);
   } catch (err) {
