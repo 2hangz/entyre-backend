@@ -12,7 +12,6 @@ const articleRoutes = require('./routes/articles');
 const videoRoutes = require('./routes/videos');
 const bannerRoutes = require('./routes/banners');
 const filesRouter = require('./routes/files');
-const mcdaRouter = require('./routes/mcda');
 const markdownRoutes = require('./routes/markdown');
 const workflowRoutes = require('./routes/workflow');
 
@@ -20,7 +19,6 @@ app.use('/api/articles', articleRoutes);
 app.use('/api/videos', videoRoutes);
 app.use('/api/banners', bannerRoutes);
 app.use('/api', filesRouter);
-app.use('/api/mcda', mcdaRouter);
 app.use('/api/markdown', markdownRoutes);
 app.use('/api/workflow', workflowRoutes);
 app.use('/images', express.static(path.join(__dirname, 'public/images')));
