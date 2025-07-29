@@ -1,14 +1,19 @@
 const express = require('express');
+const multer = require('multer');
+const cloudinary = require('../utils/cloudinary');
+const fs = require('fs');
+const path = require('path');
+
+
 const router = express.Router();
 const Workflow = require('../models/Workflow');
 
-/**
- * 工作流路由
- * 数据存储在MongoDB（通过Mongoose），供Render部署的API使用
- * 参考前端entyre-cms-frontend/src/components/workflow.jsx和模型entyre-backend/models/Workflow.js
- */
+const UPLOAD_DIR = path.join(__dirname, '../uploads');
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+const upload = multer({ dest: UPLOAD_DIR });
 
-// 获取所有工作流
 router.get('/', async (req, res) => {
   try {
     const workflows = await Workflow.find().sort({ createdAt: -1 });
@@ -131,10 +136,3 @@ router.delete('/:id', async (req, res) => {
 });
 
 module.exports = router;
-
-/**
- * 说明：
- * 1. 本路由不涉及fs文件操作，所有数据均存储在MongoDB（通过Mongoose模型）。
- * 2. Render部署时，API直接通过MongoDB存取数据，不需要本地文件存储（fs）。
- * 3. 结构和校验严格参考entyre-cms-frontend/src/components/workflow.jsx和entyre-backend/models/Workflow.js。
- */
