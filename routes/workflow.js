@@ -2,110 +2,139 @@ const express = require('express');
 const router = express.Router();
 const Workflow = require('../models/Workflow');
 
-// GET all workflows
+/**
+ * 工作流路由
+ * 数据存储在MongoDB（通过Mongoose），供Render部署的API使用
+ * 参考前端entyre-cms-frontend/src/components/workflow.jsx和模型entyre-backend/models/Workflow.js
+ */
+
+// 获取所有工作流
 router.get('/', async (req, res) => {
   try {
     const workflows = await Workflow.find().sort({ createdAt: -1 });
     res.json(workflows);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch workflows', details: err.message });
+    res.status(500).json({ error: '获取工作流失败', details: err.message });
   }
 });
 
-// GET a single workflow by ID
+// 获取单个工作流
 router.get('/:id', async (req, res) => {
   try {
     const workflow = await Workflow.findById(req.params.id);
-    if (!workflow) return res.status(404).json({ error: 'Workflow not found' });
+    if (!workflow) {
+      return res.status(404).json({ error: '未找到该工作流' });
+    }
     res.json(workflow);
   } catch (err) {
-    res.status(500).json({ error: 'Error fetching workflow', details: err.message });
+    res.status(500).json({ error: '获取工作流出错', details: err.message });
   }
 });
 
-// CREATE a new workflow
+// 创建新的工作流
 router.post('/', async (req, res) => {
   try {
-    // Validate required fields based on the schema in file_context_0
-    if (!req.body.name || typeof req.body.name !== 'string') {
-      return res.status(400).json({ error: 'Workflow name is required and must be a string.' });
+    const { name, status, description, nodes, connections, nodePositions } = req.body;
+
+    // 校验name
+    if (!name || typeof name !== 'string') {
+      return res.status(400).json({ error: '工作流名称必填且必须为字符串' });
     }
-    // nodes and connections are optional, but if present, should be arrays
-    if (req.body.nodes && !Array.isArray(req.body.nodes)) {
-      return res.status(400).json({ error: 'nodes must be an array.' });
+    // 校验nodes
+    if (nodes && !Array.isArray(nodes)) {
+      return res.status(400).json({ error: 'nodes 必须为数组' });
     }
-    if (req.body.connections && !Array.isArray(req.body.connections)) {
-      return res.status(400).json({ error: 'connections must be an array.' });
+    // 校验connections
+    if (connections && !Array.isArray(connections)) {
+      return res.status(400).json({ error: 'connections 必须为数组' });
     }
-    // nodePositions, if present, should be an object (Map)
-    if (req.body.nodePositions && (typeof req.body.nodePositions !== 'object' || Array.isArray(req.body.nodePositions))) {
-      return res.status(400).json({ error: 'nodePositions must be an object.' });
+    // 校验nodePositions
+    if (nodePositions && (typeof nodePositions !== 'object' || Array.isArray(nodePositions))) {
+      return res.status(400).json({ error: 'nodePositions 必须为对象' });
     }
 
-    // Only allow fields defined in the schema
-    const { name, status, description, nodes, connections, nodePositions } = req.body;
+    // 直接存储，mongoose schema会自动校验
     const workflow = new Workflow({
       name,
       status,
       description,
-      nodes,
-      connections,
-      nodePositions
+      nodes: nodes || [],
+      connections: connections || [],
+      nodePositions: nodePositions && Object.keys(nodePositions).length > 0 ? nodePositions : undefined
     });
+
     await workflow.save();
     res.status(201).json(workflow);
   } catch (err) {
-    res.status(400).json({ error: 'Failed to create workflow', details: err.message });
+    res.status(400).json({ error: '创建工作流失败', details: err.message });
   }
 });
 
-// UPDATE a workflow by ID
+// 更新工作流
 router.put('/:id', async (req, res) => {
   try {
-    // Validate fields if present
-    if (req.body.name && typeof req.body.name !== 'string') {
-      return res.status(400).json({ error: 'Workflow name must be a string.' });
+    const { name, status, description, nodes, connections, nodePositions } = req.body;
+
+    // 校验name
+    if ('name' in req.body && typeof name !== 'string') {
+      return res.status(400).json({ error: '工作流名称必须为字符串' });
     }
-    if (req.body.nodes && !Array.isArray(req.body.nodes)) {
-      return res.status(400).json({ error: 'nodes must be an array.' });
+    // 校验nodes
+    if ('nodes' in req.body && nodes && !Array.isArray(nodes)) {
+      return res.status(400).json({ error: 'nodes 必须为数组' });
     }
-    if (req.body.connections && !Array.isArray(req.body.connections)) {
-      return res.status(400).json({ error: 'connections must be an array.' });
+    // 校验connections
+    if ('connections' in req.body && connections && !Array.isArray(connections)) {
+      return res.status(400).json({ error: 'connections 必须为数组' });
     }
-    if (req.body.nodePositions && (typeof req.body.nodePositions !== 'object' || Array.isArray(req.body.nodePositions))) {
-      return res.status(400).json({ error: 'nodePositions must be an object.' });
+    // 校验nodePositions
+    if ('nodePositions' in req.body && nodePositions && (typeof nodePositions !== 'object' || Array.isArray(nodePositions))) {
+      return res.status(400).json({ error: 'nodePositions 必须为对象' });
     }
 
-    // Only allow fields defined in the schema
+    // 只更新有传递的字段
     const updateFields = {};
-    if ('name' in req.body) updateFields.name = req.body.name;
-    if ('status' in req.body) updateFields.status = req.body.status;
-    if ('description' in req.body) updateFields.description = req.body.description;
-    if ('nodes' in req.body) updateFields.nodes = req.body.nodes;
-    if ('connections' in req.body) updateFields.connections = req.body.connections;
-    if ('nodePositions' in req.body) updateFields.nodePositions = req.body.nodePositions;
+    if ('name' in req.body) updateFields.name = name;
+    if ('status' in req.body) updateFields.status = status;
+    if ('description' in req.body) updateFields.description = description;
+    if ('nodes' in req.body) updateFields.nodes = nodes;
+    if ('connections' in req.body) updateFields.connections = connections;
+    if ('nodePositions' in req.body) {
+      updateFields.nodePositions = nodePositions && Object.keys(nodePositions).length > 0 ? nodePositions : undefined;
+    }
 
     const updated = await Workflow.findByIdAndUpdate(
       req.params.id,
       updateFields,
       { new: true, runValidators: true }
     );
-    if (!updated) return res.status(404).json({ error: 'Workflow not found' });
+    if (!updated) {
+      return res.status(404).json({ error: '未找到该工作流' });
+    }
     res.json(updated);
   } catch (err) {
-    res.status(400).json({ error: 'Failed to update workflow', details: err.message });
+    res.status(400).json({ error: '更新工作流失败', details: err.message });
   }
 });
 
-// DELETE a workflow by ID
+// 删除工作流
 router.delete('/:id', async (req, res) => {
   try {
     const deleted = await Workflow.findByIdAndDelete(req.params.id);
-    if (!deleted) return res.status(404).json({ error: 'Workflow not found' });
-    res.json({ message: 'Workflow deleted' });
+    if (!deleted) {
+      return res.status(404).json({ error: '未找到该工作流' });
+    }
+    res.json({ message: '工作流已删除' });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to delete workflow', details: err.message });
+    res.status(500).json({ error: '删除工作流失败', details: err.message });
   }
 });
 
 module.exports = router;
+
+/**
+ * 说明：
+ * 1. 本路由不涉及fs文件操作，所有数据均存储在MongoDB（通过Mongoose模型）。
+ * 2. Render部署时，API直接通过MongoDB存取数据，不需要本地文件存储（fs）。
+ * 3. 结构和校验严格参考entyre-cms-frontend/src/components/workflow.jsx和entyre-backend/models/Workflow.js。
+ */
