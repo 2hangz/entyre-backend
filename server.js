@@ -14,10 +14,12 @@ const bannerRoutes = require('./routes/banners');
 const filesRouter = require('./routes/files');
 const markdownRoutes = require('./routes/markdown');
 const workflowRoutes = require('./routes/workflow');
+const uploadRoutes = require('./routes/uploadNodes');
 
 app.use('/api/articles', articleRoutes);
 app.use('/api/videos', videoRoutes);
 app.use('/api/banners', bannerRoutes);
+app.use('/api', uploadRoutes);
 app.use('/api', filesRouter);
 app.use('/api/markdown', markdownRoutes);
 app.use('/api/workflow', workflowRoutes);
