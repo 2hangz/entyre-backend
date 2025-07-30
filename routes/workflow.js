@@ -37,7 +37,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create a new workflow (supports file upload to Cloudinary)
-router.post('/upload-icon', upload.single('file'), async (req, res) => {
+router.post('/', upload.single('file'), async (req, res) => {
   try {
     let fileUrl = null;
     let filePublicId = null;
