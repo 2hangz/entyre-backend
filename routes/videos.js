@@ -35,7 +35,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Create a new video with optional thumbnail and local video file
+// Create a new video with optional thumbnail and local video file (now uploads video to cloudinary)
 router.post(
   '/',
   upload.fields([
@@ -45,8 +45,8 @@ router.post(
   async (req, res) => {
     let thumbnail = null;
     let thumbnailPublicId = null;
-    let localVideoPublicId = null;
-    let localVideoUrl = null;
+    let videoCloudUrl = null;
+    let videoCloudPublicId = null;
 
     try {
       // Upload thumbnail to Cloudinary if provided
@@ -59,11 +59,17 @@ router.post(
         await fs.promises.unlink(req.files['file'][0].path);
       }
 
-      // Handle local video file if provided (do not upload to Cloudinary)
+      // Upload local video file to Cloudinary if provided
       if (req.files && req.files['localVideo'] && req.files['localVideo'][0]) {
         const localFile = req.files['localVideo'][0];
-        localVideoUrl = `/uploads/${path.basename(localFile.path)}`;
-        localVideoPublicId = path.basename(localFile.path);
+        // Upload as video resource
+        const videoResult = await cloudinary.uploader.upload(localFile.path, {
+          resource_type: 'video',
+          folder: 'entyre/videos',
+        });
+        videoCloudUrl = videoResult.secure_url;
+        videoCloudPublicId = videoResult.public_id;
+        await fs.promises.unlink(localFile.path);
       }
 
       const { title, videoUrl } = req.body;
@@ -71,9 +77,9 @@ router.post(
       const saved = await new Video({
         title,
         thumbnail,
-        videoUrl: videoUrl || localVideoUrl,
+        videoUrl: videoCloudUrl || videoUrl,
         thumbnailPublicId,
-        localVideoPublicId,
+        localVideoPublicId: videoCloudPublicId,
       }).save();
 
       res.json(saved);
@@ -83,7 +89,7 @@ router.post(
   }
 );
 
-// Edit a video (replace thumbnail and/or local video file)
+// Edit a video (replace thumbnail and/or local video file, now uploads video to cloudinary)
 router.put(
   '/:id',
   upload.fields([
@@ -112,20 +118,26 @@ router.put(
         await fs.promises.unlink(req.files['file'][0].path);
       }
 
-      // Replace local video file if a new one is provided
+      // Replace local video file if a new one is provided (upload to cloudinary)
       if (req.files && req.files['localVideo'] && req.files['localVideo'][0]) {
-        // Delete old local video file if exists
+        // Delete old video from Cloudinary if exists
         if (video.localVideoPublicId) {
-          const oldPath = path.join(UPLOAD_DIR, video.localVideoPublicId);
-          if (fs.existsSync(oldPath)) {
-            await fs.promises.unlink(oldPath);
-          }
+          await cloudinary.uploader.destroy(video.localVideoPublicId, { resource_type: 'video' });
         }
         const localFile = req.files['localVideo'][0];
-        video.videoUrl = `/uploads/${path.basename(localFile.path)}`;
-        video.localVideoPublicId = path.basename(localFile.path);
+        const videoResult = await cloudinary.uploader.upload(localFile.path, {
+          resource_type: 'video',
+          folder: 'entyre/videos',
+        });
+        video.videoUrl = videoResult.secure_url;
+        video.localVideoPublicId = videoResult.public_id;
+        await fs.promises.unlink(localFile.path);
       } else if (videoUrl) {
         // If a cloud video URL is provided, use it and clear local video info
+        // Also, if there was a previous cloudinary video, delete it
+        if (video.localVideoPublicId) {
+          await cloudinary.uploader.destroy(video.localVideoPublicId, { resource_type: 'video' });
+        }
         video.videoUrl = videoUrl;
         video.localVideoPublicId = null;
       }
@@ -142,7 +154,7 @@ router.put(
   }
 );
 
-// Delete a video (also delete thumbnail and local video file if present)
+// Delete a video (also delete thumbnail and cloudinary video if present)
 router.delete('/:id', async (req, res) => {
   try {
     const video = await Video.findByIdAndDelete(req.params.id);
@@ -153,12 +165,9 @@ router.delete('/:id', async (req, res) => {
     if (video.thumbnailPublicId) {
       await cloudinary.uploader.destroy(video.thumbnailPublicId);
     }
-    // Delete local video file if exists
+    // Delete video from Cloudinary if exists
     if (video.localVideoPublicId) {
-      const localPath = path.join(UPLOAD_DIR, video.localVideoPublicId);
-      if (fs.existsSync(localPath)) {
-        await fs.promises.unlink(localPath);
-      }
+      await cloudinary.uploader.destroy(video.localVideoPublicId, { resource_type: 'video' });
     }
     res.json({ message: 'Deleted successfully', video });
   } catch (err) {
@@ -166,7 +175,7 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// Serve uploaded files statically
+// Serve uploaded files statically (for backward compatibility, but not used for new videos)
 router.use('/uploads', express.static(UPLOAD_DIR));
 
 module.exports = router;
