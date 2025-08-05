@@ -12,67 +12,161 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 }
 const upload = multer({ dest: UPLOAD_DIR });
 
-//fetch all videos
+// Get all videos
 router.get('/', async (req, res) => {
-        const videos = await Video.find().sort({createdAt:-1});
-        res.json(videos);
+  try {
+    const videos = await Video.find().sort({ createdAt: -1 });
+    res.json(videos);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch videos.' });
+  }
 });
 
-//fetch sigle video
-router.get('/:id', async (req, res) =>{
-        const video = await Video.findById(req.params.id);
-        res.json(video);
-})
+// Get a single video by ID
+router.get('/:id', async (req, res) => {
+  try {
+    const video = await Video.findById(req.params.id);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found.' });
+    }
+    res.json(video);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch video.' });
+  }
+});
 
-//create new video
-router.post('/', upload.single('file'), async(req, res) =>{
-    let thumbnail =null;
-    let thumbnailPublicId =null;
+// Create a new video with optional thumbnail and local video file
+router.post(
+  '/',
+  upload.fields([
+    { name: 'file', maxCount: 1 }, // Thumbnail
+    { name: 'localVideo', maxCount: 1 }, // Local video file
+  ]),
+  async (req, res) => {
+    let thumbnail = null;
+    let thumbnailPublicId = null;
+    let localVideoPublicId = null;
+    let localVideoUrl = null;
 
-    if(req.file){
-        const result = await cloudinary.uploader.upload(req.file.path, {
-            folder: 'entyre/videosThumbnail'
+    try {
+      // Upload thumbnail to Cloudinary if provided
+      if (req.files && req.files['file'] && req.files['file'][0]) {
+        const result = await cloudinary.uploader.upload(req.files['file'][0].path, {
+          folder: 'entyre/videosThumbnail',
         });
         thumbnail = result.secure_url;
-        thumbnailPublicId = result.public_id
+        thumbnailPublicId = result.public_id;
+        await fs.promises.unlink(req.files['file'][0].path);
+      }
 
-        await fs.promises.unlink(req.file.path);
+      // Handle local video file if provided (do not upload to Cloudinary)
+      if (req.files && req.files['localVideo'] && req.files['localVideo'][0]) {
+        const localFile = req.files['localVideo'][0];
+        localVideoUrl = `/uploads/${path.basename(localFile.path)}`;
+        localVideoPublicId = path.basename(localFile.path);
+      }
+
+      const { title, videoUrl } = req.body;
+
+      const saved = await new Video({
+        title,
+        thumbnail,
+        videoUrl: videoUrl || localVideoUrl,
+        thumbnailPublicId,
+        localVideoPublicId,
+      }).save();
+
+      res.json(saved);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to create video.' });
     }
+  }
+);
 
-    const {title, videoUrl} = req.body;
-    const saved = await new Video({title, thumbnail, videoUrl, thumbnailPublicId}).save();
-    res.json(saved);
-});
+// Edit a video (replace thumbnail and/or local video file)
+router.put(
+  '/:id',
+  upload.fields([
+    { name: 'file', maxCount: 1 }, // Thumbnail
+    { name: 'localVideo', maxCount: 1 }, // Local video file
+  ]),
+  async (req, res) => {
+    try {
+      const { title, videoUrl } = req.body;
+      const video = await Video.findById(req.params.id);
 
-//editing
-router.put('/:id', upload.single('file'), async (req, res) => {
-    const { title, videoUrl } = req.body;
-    const video = await Video.findById(req.params.id);
-    if (req.file){
+      if (!video) {
+        return res.status(404).json({ error: 'Video not found.' });
+      }
+
+      // Replace thumbnail if a new one is provided
+      if (req.files && req.files['file'] && req.files['file'][0]) {
         if (video.thumbnailPublicId) {
-            await cloudinary.uploader.destroy(video.thumbnailPublicId);
-          }
-        const result = await cloudinary.uploader.upload(req.file.path,{folder:'entyre/videosThumbnail'});
+          await cloudinary.uploader.destroy(video.thumbnailPublicId);
+        }
+        const result = await cloudinary.uploader.upload(req.files['file'][0].path, {
+          folder: 'entyre/videosThumbnail',
+        });
         video.thumbnail = result.secure_url;
         video.thumbnailPublicId = result.public_id;
+        await fs.promises.unlink(req.files['file'][0].path);
+      }
 
-        await fs.promises.unlink(req.file.path);
+      // Replace local video file if a new one is provided
+      if (req.files && req.files['localVideo'] && req.files['localVideo'][0]) {
+        // Delete old local video file if exists
+        if (video.localVideoPublicId) {
+          const oldPath = path.join(UPLOAD_DIR, video.localVideoPublicId);
+          if (fs.existsSync(oldPath)) {
+            await fs.promises.unlink(oldPath);
+          }
+        }
+        const localFile = req.files['localVideo'][0];
+        video.videoUrl = `/uploads/${path.basename(localFile.path)}`;
+        video.localVideoPublicId = path.basename(localFile.path);
+      } else if (videoUrl) {
+        // If a cloud video URL is provided, use it and clear local video info
+        video.videoUrl = videoUrl;
+        video.localVideoPublicId = null;
+      }
+
+      if (typeof title !== 'undefined') {
+        video.title = title;
+      }
+
+      const updated = await video.save();
+      res.json(updated);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to update video.' });
     }
-    video.title = title ?? video.title;
-    video.videoUrl = videoUrl ?? video.videoUrl;
+  }
+);
 
-    const updated = await video.save();
-    res.json(updated);
-})
-
-//delete
-router.delete('/:id', async (req, res)=>{
+// Delete a video (also delete thumbnail and local video file if present)
+router.delete('/:id', async (req, res) => {
+  try {
     const video = await Video.findByIdAndDelete(req.params.id);
-    if (video.thumbnailPublicId){
-        await cloudinary.uploader.destroy(video.thumbnailPublicId);
-        res.json({ message: 'Deleted successfully', video });
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found.' });
     }
-})
+    // Delete thumbnail from Cloudinary if exists
+    if (video.thumbnailPublicId) {
+      await cloudinary.uploader.destroy(video.thumbnailPublicId);
+    }
+    // Delete local video file if exists
+    if (video.localVideoPublicId) {
+      const localPath = path.join(UPLOAD_DIR, video.localVideoPublicId);
+      if (fs.existsSync(localPath)) {
+        await fs.promises.unlink(localPath);
+      }
+    }
+    res.json({ message: 'Deleted successfully', video });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete video.' });
+  }
+});
 
+// Serve uploaded files statically
 router.use('/uploads', express.static(UPLOAD_DIR));
+
 module.exports = router;

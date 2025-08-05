@@ -54,7 +54,6 @@ router.post('/', upload.single('file'), async (req, res) => {
     }
 
     // Parse body
-    // If form-data, nodes/connections/nodePositions may be strings, need to parse
     let { name, status, description, nodes, connections, nodePositions } = req.body;
 
     if (typeof nodes === 'string') {
