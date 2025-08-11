@@ -5,7 +5,6 @@ require('./db/mongoose');
 const app = express();
 const PORT = 3001;
 
-const { router, checkImagesExist, runPythonScripts } = require('./routes/checkImage');
 
 app.use(cors());
 app.use(express.json());
@@ -18,6 +17,7 @@ const filesRouter = require('./routes/files');
 const markdownRoutes = require('./routes/markdown');
 const workflowRoutes = require('./routes/workflow');
 const uploadRoutes = require('./routes/uploadNodes');
+const { router, checkImagesExist, runPythonScripts } = require('./routes/checkImage');
 
 app.use('/api/articles', articleRoutes);
 app.use('/api/videos', videoRoutes);
@@ -27,6 +27,8 @@ app.use('/api', filesRouter);
 app.use('/api', router);
 app.use('/api/markdown', markdownRoutes);
 app.use('/api/workflow', workflowRoutes);
+app.use('api/check-iamge', checkImagesExist);
+app.use('api/run-script', runPythonScripts);
 app.use('/images', express.static(path.join(__dirname, 'public/images')));
 app.use('/data', express.static(path.join(__dirname, 'data')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
