@@ -17,6 +17,10 @@ const videoSchema = new mongoose.Schema({
   },
   thumbnailPublicId: {
     type: String
+  },
+  localVideoPublicId: {
+    type: String,
+    trim: true
   }
 }, { timestamps: true });
 

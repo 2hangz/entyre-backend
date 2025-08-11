@@ -49,7 +49,7 @@ function runPythonScripts() {
   let completedScripts = 0;
   
   scripts.forEach(scriptName => {
-    const scriptPath = path.join(__dirname, 'src', scriptName);
+    const scriptPath = path.join(process.cwd(), 'src', script);
     
     if (fs.existsSync(scriptPath)) {
       console.log(`Running ${scriptName}...`);
@@ -126,7 +126,7 @@ router.get('/run-script', (req, res) => {
   console.log(`Running ${script}...`);
   
   const pythonProcess = spawn('python', [script], {
-    cwd: path.join(__dirname, 'src'),
+    cwd: path.join(process.cwd(), 'src'),
     stdio: 'pipe'
   });
   
