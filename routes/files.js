@@ -18,38 +18,50 @@ router.get('/files', (req, res) => {
   });
 });
 
-router.get('/file', (req, res) => {
+router.get('/file', async (req, res) => {
   try {
-    const fileName = req.query.file;
-    if (!fileName) {
-      return res.status(400).json({ error: 'Missing query param: file' });
+    let name = req.query.file || req.query.name || '';
+    if (!name) {
+      return res.status(400).json({ error: 'Missing ?file= or ?name=' });
     }
 
-    const fullPath = path.resolve(dataDir, fileName);
-    if (!fullPath.startsWith(path.resolve(dataDir))) {
-      return res.status(400).json({ error: 'Invalid file path' });
+    // 1) 解码 + 去掉路径穿越
+    try { name = decodeURIComponent(name); } catch {}
+    const safeName = path.basename(name);
+    const absPath = path.join(DATA_DIR, safeName);
+
+    // 2) 存在性检查
+    if (!fs.existsSync(absPath)) {
+      return res.status(404).json({ error: 'File not found', path: absPath, name: safeName });
     }
 
-    if (!fs.existsSync(fullPath)) {
-      return res.status(404).json({ error: 'File not found' });
+    // 3) 读文件并打印前64字节，辨别是不是HTML/空文件
+    const buf = fs.readFileSync(absPath);
+    const head = buf.subarray(0, 64).toString();
+    console.log('[READ FILE]', { absPath, size: buf.length, headSnippet: head.replace(/\n/g, '\\n') });
+
+    // 4) 解析（自动识别 xlsx/xls）
+    let wb;
+    try {
+      // 优先用 read (buffer)
+      wb = XLSX.read(buf, { type: 'buffer', cellDates: true, cellNF: false, raw: false });
+      // 或者：wb = XLSX.readFile(absPath, { cellDates: true });
+    } catch (e) {
+      console.error('[XLSX READ ERROR]', e.message);
+      return res.status(400).json({ error: 'Failed to parse excel', message: e.message });
     }
 
-    const wb = XLSX.readFile(fullPath, { cellDates: true });
-    const result = {};
-
-    wb.SheetNames.forEach(sheetName => {
-      const ws = wb.Sheets[sheetName];
-      const json = XLSX.utils.sheet_to_json(ws, {
-        defval: '',
-        raw: true
-      });
-      result[sheetName] = json;
+    // 5) 转 JSON
+    const out = {};
+    wb.SheetNames.forEach((sheet) => {
+      const ws = wb.Sheets[sheet];
+      out[sheet] = XLSX.utils.sheet_to_json(ws, { defval: null });
     });
 
-    res.json(result);
-  } catch (e) {
-    console.error('Read excel error:', e);
-    res.status(500).json({ error: 'Failed to parse excel' });
+    return res.json(out);
+  } catch (err) {
+    console.error('[API /file ERROR]', err);
+    return res.status(500).json({ error: 'Server error', message: err.message });
   }
 });
 
