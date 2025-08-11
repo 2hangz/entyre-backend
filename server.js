@@ -27,7 +27,7 @@ app.use('/api', filesRouter);
 app.use('/api', router);
 app.use('/api/markdown', markdownRoutes);
 app.use('/api/workflow', workflowRoutes);
-app.use('api/check-iamge', checkImagesExist);
+app.use('api/check-image', checkImagesExist);
 app.use('api/run-script', runPythonScripts);
 app.use('/images', express.static(path.join(__dirname, 'public/images')));
 app.use('/data', express.static(path.join(__dirname, 'data')));
