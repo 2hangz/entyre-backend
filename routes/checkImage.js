@@ -7,7 +7,7 @@ const router = express.Router();
 
 // Function to check if images exist
 function checkImagesExist() {
-  const imageDir = path.join(__dirname, 'public', 'image');
+  const imageDir = path.join(__dirname, 'image');
   const scatterDir = path.join(imageDir, 'scatter_plots');
   const tornadoDir = path.join(imageDir, 'tornado_diagrams');
   
@@ -84,7 +84,7 @@ function runPythonScripts() {
 
 // API endpoint: Check specific image type
 router.get('/check-images', (req, res) => {
-  const imageDir = path.join(__dirname, 'public', 'image');
+  const imageDir = path.join(__dirname, 'image');
   
   try {
     // Check if image directory exists
