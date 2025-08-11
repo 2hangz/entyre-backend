@@ -5,7 +5,7 @@ const path = require('path');
 
 const router = express.Router();
 
-const dataDir = path.join(__dirname, '../../data');
+const dataDir = path.join(__dirname, '../data');
 
 router.get('/files', (req, res) => {
   fs.readdir(dataDir, (err, files) => {
@@ -19,7 +19,6 @@ router.get('/files', (req, res) => {
 });
 
 router.get('/file', (req, res) => {
-  console.log('Reading Excel file:', filePath);
   try {
     const fileName = req.query.file;
     if (!fileName) {
