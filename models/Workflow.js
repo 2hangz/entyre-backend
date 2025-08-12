@@ -4,7 +4,7 @@ const nodeSchema = new mongoose.Schema({
     id: { type: String, required: true, trim: true },
     icon: { type: String, trim: true },
     type: { type: String, trim: true },
-    label: { type: String, trim: true },
+    label: { type: String, trim:true },
     detail: { type: String, trim: true },
     selectable: { type: Boolean }
 }, { _id: false });
@@ -37,8 +37,7 @@ const workflowSchema = new mongoose.Schema({
     connections: { type: [connectionSchema], default: [] },
     nodePositions: {
         type: Map,
-        of: nodePositionSchema,
-        default: undefined // 允许为undefined，和router逻辑一致
+        of: nodePositionSchema
     },
     fileUrl: { type: String, trim: true },
     filePublicId: { type: String, trim: true },
