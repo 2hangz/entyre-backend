@@ -23,6 +23,12 @@ const nodePositionSchema = new mongoose.Schema({
     y: { type: Number, required: true }
 }, { _id: false });
 
+const imageSchema = new mongoose.Schema({
+    id: { type: String, required: true, trim: true }, // 文件名
+    url: { type: String, required: true, trim: true },
+    publicId: { type: String, trim: true }
+}, { _id: false });
+
 const workflowSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true },
     status: { type: String, trim: true },
@@ -31,10 +37,12 @@ const workflowSchema = new mongoose.Schema({
     connections: { type: [connectionSchema], default: [] },
     nodePositions: {
         type: Map,
-        of: nodePositionSchema
+        of: nodePositionSchema,
+        default: undefined // 允许为undefined，和router逻辑一致
     },
     fileUrl: { type: String, trim: true },
-    filePublicId: { type: String, trim: true }
+    filePublicId: { type: String, trim: true },
+    images: { type: [imageSchema], default: [] }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Workflow', workflowSchema);
