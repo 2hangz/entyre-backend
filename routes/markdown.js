@@ -39,11 +39,14 @@ router.get('/:sectionIndex', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     let { sectionIndex, content, title, type } = req.body;
-    sectionIndex = toInt(sectionIndex);
 
-   
-    if (!Number.isInteger(sectionIndex) || typeof content !== 'string') {
-      return res.status(400).json({ error: 'Invalid sectionIndex or content' });
+    // robust coercion + defaults
+    sectionIndex = Number(sectionIndex);
+    if (!Number.isInteger(sectionIndex)) {
+      return res.status(400).json({ error: 'Invalid sectionIndex (must be integer)' });
+    }
+    if (typeof content !== 'string') {
+      return res.status(400).json({ error: 'Invalid content (must be string)' });
     }
     if (title !== undefined && typeof title !== 'string') {
       return res.status(400).json({ error: 'Title must be a string' });
@@ -52,20 +55,29 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Type must be a string' });
     }
 
-   
+    // pre-check duplicate (helps return 409 before hitting index)
     const exists = await MarkdownSection.findOne({ sectionIndex });
     if (exists) {
-      return res.status(409).json({ error: 'Section with this index already exists' });
+      return res.status(409).json({ error: `Section index ${sectionIndex} already exists` });
     }
 
-    const newSection = new MarkdownSection({ sectionIndex, content, title, type });
-    const saved = await newSection.save();
+    const doc = new MarkdownSection({ sectionIndex, content, title, type });
+    const saved = await doc.save();
     res.status(201).json(saved);
   } catch (err) {
-    if (err && err.code === 11000) {
-      return res.status(409).json({ error: 'Section with this index already exists' });
-    }
+    // precise error surfacing to the client
     console.error('[POST /api/markdown] Error:', err);
+
+    // known Mongo duplicate
+    if (err && (err.code === 11000 || /E11000/.test(err.message))) {
+      return res.status(409).json({ error: 'Duplicate sectionIndex', message: err.message });
+    }
+
+    // Mongoose validation errors (enum/type etc.)
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ error: 'ValidationError', message: err.message });
+    }
+
     res.status(500).json({ error: 'Error creating section', message: err.message });
   }
 });
