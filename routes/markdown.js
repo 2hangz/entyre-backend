@@ -29,24 +29,24 @@ router.get('/:sectionIndex', async (req, res) => {
   }
 });
 
-// PUT update a section by ID (now supports title and type)
+// PUT update a section by ID
 router.put('/:id', async (req, res) => {
   try {
     const { content, title, type } = req.body;
     if (typeof content !== 'string') {
       return res.status(400).json({ error: 'Content must be a string' });
     }
-    // title is optional, but if present, must be a string
     if (title !== undefined && typeof title !== 'string') {
       return res.status(400).json({ error: 'Title must be a string' });
     }
-    // type is optional, but if present, must be a string
     if (type !== undefined && typeof type !== 'string') {
       return res.status(400).json({ error: 'Type must be a string' });
     }
+    
     const updateFields = { content, updatedAt: new Date() };
     if (title !== undefined) updateFields.title = title;
     if (type !== undefined) updateFields.type = type;
+    
     const updated = await MarkdownSection.findByIdAndUpdate(
       req.params.id,
       updateFields,
@@ -60,7 +60,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// POST create a new section (for admin use only, now supports title and type)
+// POST create a new section
 router.post('/', async (req, res) => {
   try {
     const { sectionIndex, content, title, type } = req.body;
@@ -73,17 +73,116 @@ router.post('/', async (req, res) => {
     if (type !== undefined && typeof type !== 'string') {
       return res.status(400).json({ error: 'Type must be a string' });
     }
+    
     // Prevent duplicate sectionIndex
     const exists = await MarkdownSection.findOne({ sectionIndex });
     if (exists) {
       return res.status(409).json({ error: 'Section with this index already exists' });
     }
+    
     const newSection = new MarkdownSection({ sectionIndex, content, title, type });
     const saved = await newSection.save();
     res.status(201).json(saved);
   } catch (err) {
     console.error('Error creating section:', err);
     res.status(500).json({ error: 'Error creating section' });
+  }
+});
+
+// DELETE a section by ID
+router.delete('/:id', async (req, res) => {
+  try {
+    const deleted = await MarkdownSection.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ error: 'Section not found' });
+    res.json({ message: 'Section deleted successfully', section: deleted });
+  } catch (err) {
+    console.error('Error deleting section:', err);
+    res.status(500).json({ error: 'Error deleting section' });
+  }
+});
+
+// POST bulk seed/update content (useful for initial setup)
+router.post('/bulk-seed', async (req, res) => {
+  try {
+    const { sections, clearExisting = false } = req.body;
+    
+    if (!Array.isArray(sections)) {
+      return res.status(400).json({ error: 'Sections must be an array' });
+    }
+    
+    let result = {
+      message: 'Bulk operation completed',
+      created: 0,
+      updated: 0,
+      errors: []
+    };
+    
+    // Clear existing if requested
+    if (clearExisting) {
+      await MarkdownSection.deleteMany({});
+      result.message += ' (existing content cleared)';
+    }
+    
+    // Process each section
+    for (let i = 0; i < sections.length; i++) {
+      const sectionData = sections[i];
+      
+      try {
+        // Validate section data
+        if (typeof sectionData.sectionIndex !== 'number' || typeof sectionData.content !== 'string') {
+          result.errors.push(`Section ${i}: Invalid sectionIndex or content`);
+          continue;
+        }
+        
+        // Check if section exists
+        const existing = await MarkdownSection.findOne({ sectionIndex: sectionData.sectionIndex });
+        
+        if (existing) {
+          // Update existing
+          const updateFields = { 
+            content: sectionData.content, 
+            updatedAt: new Date() 
+          };
+          if (sectionData.title !== undefined) updateFields.title = sectionData.title;
+          if (sectionData.type !== undefined) updateFields.type = sectionData.type;
+          
+          await MarkdownSection.findByIdAndUpdate(existing._id, updateFields);
+          result.updated++;
+        } else {
+          // Create new
+          const newSection = new MarkdownSection(sectionData);
+          await newSection.save();
+          result.created++;
+        }
+      } catch (err) {
+        result.errors.push(`Section ${i}: ${err.message}`);
+      }
+    }
+    
+    res.json(result);
+  } catch (err) {
+    console.error('Error in bulk seed:', err);
+    res.status(500).json({ error: 'Error in bulk operation' });
+  }
+});
+
+// GET content statistics
+router.get('/stats/overview', async (req, res) => {
+  try {
+    const totalSections = await MarkdownSection.countDocuments();
+    const sectionsByType = await MarkdownSection.aggregate([
+      { $group: { _id: '$type', count: { $sum: 1 } } }
+    ]);
+    const lastUpdated = await MarkdownSection.findOne({}, {}, { sort: { updatedAt: -1 } });
+    
+    res.json({
+      totalSections,
+      sectionsByType,
+      lastUpdated: lastUpdated?.updatedAt || null
+    });
+  } catch (err) {
+    console.error('Error fetching stats:', err);
+    res.status(500).json({ error: 'Error fetching statistics' });
   }
 });
 

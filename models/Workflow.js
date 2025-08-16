@@ -24,7 +24,7 @@ const nodePositionSchema = new mongoose.Schema({
 }, { _id: false });
 
 const imageSchema = new mongoose.Schema({
-    id: { type: String, required: true, trim: true }, // 文件名
+    id: { type: String, required: true, trim: true },
     url: { type: String, required: true, trim: true },
     publicId: { type: String, trim: true }
 }, { _id: false });
