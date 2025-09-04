@@ -15,8 +15,7 @@ app.use(cors({
     'http://localhost:3000', 
     'http://localhost:5173',
     'http://localhost:3001',
-    // Add your production frontend URL here
-    // 'https://your-frontend-domain.com'
+    'https://entyre-frontend.onrender.com'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -34,7 +33,7 @@ const filesRouter = require('./routes/files');
 const markdownRoutes = require('./routes/markdown');
 const workflowRoutes = require('./routes/workflow');
 const uploadRoutes = require('./routes/uploadNodes');
-const { router: checkImageRouter } = require('./routes/checkImage');
+const { router: checkImageRouter, checkImagesExist, runPythonScripts } = require('./routes/checkImage');
 
 // Authentication routes (public)
 app.use('/api/auth', authRouter);
@@ -45,9 +44,7 @@ app.use('/api/videos', authenticateToken, videoRoutes);
 app.use('/api/banners', authenticateToken, bannerRoutes);
 app.use('/api/markdown', authenticateToken, markdownRoutes);
 app.use('/api/workflow', authenticateToken, workflowRoutes);
-
-// Upload routes (protected)
-app.use('/api/upload-icon', authenticateToken, uploadRoutes);
+app.use('/api/upload-nodes', authenticateToken, uploadRoutes);
 
 // Optional auth routes (work with or without authentication)
 app.use('/api', optionalAuth, filesRouter);
