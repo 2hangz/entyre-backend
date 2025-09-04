@@ -23,6 +23,10 @@ const MarkdownSectionSchema = new mongoose.Schema(
       required: true,
       default: ''
     },
+    isVisible: {
+      type: Boolean,
+      default: true
+    },
     updatedAt: {
       type: Date,
       default: Date.now

@@ -7,30 +7,31 @@ function toInt(value) {
   return Number.isFinite(n) ? n : NaN;
 }
 
-
-const validateSectionData = (req, res, next) => {
-  const { sectionIndex, content, title, type } = req.body;
+// Separate validation for POST (requires sectionIndex) and PUT (doesn't require sectionIndex)
+const validateSectionDataPost = (req, res, next) => {
+  const { sectionIndex, content, title, type, isVisible } = req.body;
   const errors = [];
   
-  if (req.method === 'POST') {
-    if (sectionIndex === undefined || sectionIndex === null) {
-      errors.push('sectionIndex is required');
+  // sectionIndex is required for POST
+  if (sectionIndex === undefined || sectionIndex === null) {
+    errors.push('sectionIndex is required');
+  } else {
+    const parsedIndex = Number(sectionIndex);
+    if (!Number.isInteger(parsedIndex)) {
+      errors.push('sectionIndex must be an integer');
     } else {
-      const parsedIndex = Number(sectionIndex);
-      if (!Number.isInteger(parsedIndex)) {
-        errors.push('sectionIndex must be an integer');
-      } else {
-        req.body.sectionIndex = parsedIndex;
-      }
+      req.body.sectionIndex = parsedIndex;
     }
   }
   
+  // content validation
   if (content === undefined || content === null) {
     errors.push('content is required');
   } else if (typeof content !== 'string') {
     errors.push('content must be a string');
   }
   
+  // optional field validations
   if (title !== undefined && title !== null && typeof title !== 'string') {
     errors.push('title must be a string');
   }
@@ -41,6 +42,51 @@ const validateSectionData = (req, res, next) => {
     } else if (!['text', 'key-value', 'image'].includes(type)) {
       errors.push('type must be one of: text, key-value, image');
     }
+  }
+  
+  if (isVisible !== undefined && isVisible !== null && typeof isVisible !== 'boolean') {
+    errors.push('isVisible must be a boolean');
+  }
+  
+  if (errors.length > 0) {
+    return res.status(400).json({ 
+      error: 'Validation failed', 
+      details: errors,
+      received: req.body 
+    });
+  }
+  
+  next();
+};
+
+const validateSectionDataPut = (req, res, next) => {
+  const { content, title, type, isVisible } = req.body;
+  const errors = [];
+  
+  // For PUT, we don't validate sectionIndex as it shouldn't be changed
+  
+  // content validation (required for PUT)
+  if (content === undefined || content === null) {
+    errors.push('content is required');
+  } else if (typeof content !== 'string') {
+    errors.push('content must be a string');
+  }
+  
+  // optional field validations
+  if (title !== undefined && title !== null && typeof title !== 'string') {
+    errors.push('title must be a string');
+  }
+  
+  if (type !== undefined && type !== null) {
+    if (typeof type !== 'string') {
+      errors.push('type must be a string');
+    } else if (!['text', 'key-value', 'image'].includes(type)) {
+      errors.push('type must be one of: text, key-value, image');
+    }
+  }
+  
+  if (isVisible !== undefined && isVisible !== null && typeof isVisible !== 'boolean') {
+    errors.push('isVisible must be a boolean');
   }
   
   if (errors.length > 0) {
@@ -88,9 +134,9 @@ router.get('/:sectionIndex', async (req, res) => {
 });
 
 // POST new section
-router.post('/', validateSectionData, async (req, res) => {
+router.post('/', validateSectionDataPost, async (req, res) => {
   try {
-    const { sectionIndex, content, title, type } = req.body;
+    const { sectionIndex, content, title, type, isVisible } = req.body;
     
     const exists = await MarkdownSection.findOne({ sectionIndex });
     if (exists) {
@@ -102,9 +148,10 @@ router.post('/', validateSectionData, async (req, res) => {
 
     const docData = {
       sectionIndex,
-      content,
-      title: title || '',
-      type: type || 'text'
+      content: content.trim(),
+      title: (title || '').trim(),
+      type: type || 'text',
+      isVisible: isVisible !== undefined ? isVisible : true
     };
 
     console.log('[POST] Creating section with data:', docData);
@@ -141,9 +188,9 @@ router.post('/', validateSectionData, async (req, res) => {
 });
 
 // PUT update section
-router.put('/:id', validateSectionData, async (req, res) => {
+router.put('/:id', validateSectionDataPut, async (req, res) => {
   try {
-    const { content, title, type } = req.body;
+    const { content, title, type, isVisible } = req.body;
     
     const updateFields = { 
       content: content.trim(),
@@ -152,6 +199,7 @@ router.put('/:id', validateSectionData, async (req, res) => {
     
     if (title !== undefined) updateFields.title = title.trim();
     if (type !== undefined) updateFields.type = type;
+    if (isVisible !== undefined) updateFields.isVisible = isVisible;
     
     console.log('[PUT] Updating section with ID:', req.params.id);
     console.log('[PUT] Update fields:', updateFields);
