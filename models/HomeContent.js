@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const MarkdownSectionSchema = new mongoose.Schema(
+const HomeContentSectionSchema = new mongoose.Schema(
   {
     sectionIndex: {
       type: Number,
@@ -10,17 +10,28 @@ const MarkdownSectionSchema = new mongoose.Schema(
     },
     title: {
       type: String,
-      default: '',
+      required: true,
+      trim: true
+    },
+    description: {
+      type: String,
+      required: true,
       trim: true
     },
     type: {
       type: String,
-      enum: ['text', 'key-value', 'image'],
+      enum: ['text', 'key-value', 'image', 'card'],
       default: 'text'
     },
-    content: {
+    // For 'card' type, you may want to store button text and button link
+    cardButtonText: {
       type: String,
-      required: true,
+      trim: true,
+      default: ''
+    },
+    cardButtonLink: {
+      type: String,
+      trim: true,
       default: ''
     },
     isVisible: {
@@ -35,9 +46,9 @@ const MarkdownSectionSchema = new mongoose.Schema(
   { versionKey: false }
 );
 
-MarkdownSectionSchema.pre('save', function (next) {
+HomeContentSectionSchema.pre('save', function (next) {
   this.updatedAt = new Date();
   next();
 });
 
-module.exports = mongoose.model('MarkdownSection', MarkdownSectionSchema);
+module.exports = mongoose.model('HomeContentSection', HomeContentSectionSchema);
