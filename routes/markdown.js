@@ -68,6 +68,7 @@ const validateSectionDataPost = (req, res, next) => {
     req.body.title = toStr(title).trim();
   }
 
+  // Content can be empty string
   if (content === undefined || content === null) {
     req.body.content = '';
   } else {
@@ -88,60 +89,21 @@ const validateSectionDataPost = (req, res, next) => {
     req.body.type = type || 'text';
   }
 
-  // Layout object validation
-  if (layout && typeof layout === 'object') {
-    const validContainerWidths = ['full', 'contained', 'narrow'];
-    const validPaddings = ['none', 'small', 'normal', 'large'];
-    const validBackgrounds = ['transparent', 'white', 'gray', 'gradient-1', 'gradient-2', 'custom'];
-    const validTextAligns = ['left', 'center', 'right'];
-    const validGaps = ['small', 'normal', 'large'];
-
-    if (layout.containerWidth && !validContainerWidths.includes(layout.containerWidth)) {
-      errors.push(`layout.containerWidth must be one of: ${validContainerWidths.join(', ')}`);
-    }
-    if (layout.padding && !validPaddings.includes(layout.padding)) {
-      errors.push(`layout.padding must be one of: ${validPaddings.join(', ')}`);
-    }
-    if (layout.background && !validBackgrounds.includes(layout.background)) {
-      errors.push(`layout.background must be one of: ${validBackgrounds.join(', ')}`);
-    }
-    if (layout.textAlign && !validTextAligns.includes(layout.textAlign)) {
-      errors.push(`layout.textAlign must be one of: ${validTextAligns.join(', ')}`);
-    }
-    if (layout.columns !== undefined) {
-      const cols = Number(layout.columns);
-      if (!Number.isInteger(cols) || cols < 1 || cols > 4) {
-        errors.push('layout.columns must be an integer between 1 and 4');
-      }
-    }
-    if (layout.gap && !validGaps.includes(layout.gap)) {
-      errors.push(`layout.gap must be one of: ${validGaps.join(', ')}`);
-    }
+  // Layout object validation (simplified - let Mongoose handle detailed validation)
+  if (layout && typeof layout === 'object' && !Array.isArray(layout)) {
+    req.body.layout = layout;
+  } else if (layout) {
+    errors.push('layout must be an object');
   }
 
-  // Typography object validation
-  if (typography && typeof typography === 'object') {
-    const validTitleSizes = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
-    const validFontFamilies = ['default', 'serif', 'mono'];
-
-    if (typography.titleSize && !validTitleSizes.includes(typography.titleSize)) {
-      errors.push(`typography.titleSize must be one of: ${validTitleSizes.join(', ')}`);
-    }
-    if (typography.fontFamily && !validFontFamilies.includes(typography.fontFamily)) {
-      errors.push(`typography.fontFamily must be one of: ${validFontFamilies.join(', ')}`);
-    }
+  // Typography object validation (simplified)
+  if (typography && typeof typography === 'object' && !Array.isArray(typography)) {
+    req.body.typography = typography;
+  } else if (typography) {
+    errors.push('typography must be an object');
   }
 
   // Type-specific validation
-  if (req.body.type === 'card') {
-    if (!cardButtonText || typeof cardButtonText !== 'string') {
-      errors.push('cardButtonText is required for card type');
-    }
-    if (!cardButtonLink || typeof cardButtonLink !== 'string') {
-      errors.push('cardButtonLink is required for card type');
-    }
-  }
-
   if (req.body.type === 'hero' && heroButtons) {
     if (!Array.isArray(heroButtons)) {
       errors.push('heroButtons must be an array');
@@ -192,25 +154,6 @@ const validateSectionDataPost = (req, res, next) => {
     req.body.isVisible = toBool(isVisible);
   }
 
-  // Animation object validation
-  if (animation && typeof animation === 'object') {
-    if (animation.enabled !== undefined) {
-      req.body.animation.enabled = toBool(animation.enabled);
-    }
-    if (animation.delay !== undefined) {
-      const delay = Number(animation.delay);
-      if (!Number.isFinite(delay) || delay < 0) {
-        errors.push('animation.delay must be a non-negative number');
-      }
-    }
-    if (animation.duration !== undefined) {
-      const duration = Number(animation.duration);
-      if (!Number.isFinite(duration) || duration <= 0) {
-        errors.push('animation.duration must be a positive number');
-      }
-    }
-  }
-
   if (errors.length > 0) {
     return res.status(400).json({
       error: 'Validation failed',
@@ -224,11 +167,7 @@ const validateSectionDataPost = (req, res, next) => {
 
 // Enhanced validation for PUT requests
 const validateSectionDataPut = (req, res, next) => {
-  // Similar validation to POST but without requiring sectionIndex
   const errors = [];
-  
-  // Perform similar validation as POST but allow partial updates
-  // This is a simplified version - in practice, you'd want to check each field
   
   if (req.body.type) {
     const validTypes = [
@@ -241,6 +180,16 @@ const validateSectionDataPut = (req, res, next) => {
     if (!validTypes.includes(req.body.type)) {
       errors.push(`type must be one of: ${validTypes.join(', ')}`);
     }
+  }
+
+  // Layout validation (simplified)
+  if (req.body.layout && (typeof req.body.layout !== 'object' || Array.isArray(req.body.layout))) {
+    errors.push('layout must be an object');
+  }
+
+  // Typography validation (simplified)
+  if (req.body.typography && (typeof req.body.typography !== 'object' || Array.isArray(req.body.typography))) {
+    errors.push('typography must be an object');
   }
 
   if (errors.length > 0) {
@@ -280,7 +229,21 @@ router.get('/', async (req, res) => {
 
     const sections = await sectionsQuery;
     
-    res.json(sections);
+    // Ensure all sections have proper structure
+    const formattedSections = sections.map(section => {
+      const obj = section.toObject();
+      
+      // Ensure nested objects exist with defaults
+      if (!obj.layout) obj.layout = {};
+      if (!obj.typography) obj.typography = {};
+      if (!obj.animation) obj.animation = {};
+      if (!obj.displayConditions) obj.displayConditions = {};
+      if (!obj.seo) obj.seo = {};
+      
+      return obj;
+    });
+    
+    res.json(formattedSections);
   } catch (err) {
     console.error('[GET /api/markdown] Failed:', err);
     res.status(500).json({
@@ -297,7 +260,13 @@ router.get('/:id', async (req, res) => {
     if (!section) {
       return res.status(404).json({ error: 'Section not found' });
     }
-    res.json(section);
+    
+    // Format the response
+    const formattedSection = section.toObject();
+    if (!formattedSection.layout) formattedSection.layout = {};
+    if (!formattedSection.typography) formattedSection.typography = {};
+    
+    res.json(formattedSection);
   } catch (err) {
     console.error('[GET /api/markdown/:id] Error:', err);
     if (err.name === 'CastError') {
@@ -352,79 +321,47 @@ router.post('/', validateSectionDataPost, async (req, res) => {
       });
     }
 
-    // Create the document data
+    // Create the document data with proper defaults
     const docData = {
       sectionIndex,
       title: toStr(title).trim(),
       content: toStr(content),
       type: type || 'text',
-      
-      // Layout options
-      layout: {
-        containerWidth: layout?.containerWidth || 'contained',
-        padding: layout?.padding || 'normal',
-        background: layout?.background || 'transparent',
-        customBackground: layout?.customBackground || '',
-        textAlign: layout?.textAlign || 'left',
-        columns: layout?.columns || 1,
-        gap: layout?.gap || 'normal'
-      },
-      
-      // Typography options
-      typography: {
-        titleSize: typography?.titleSize || 'h2',
-        titleColor: typography?.titleColor || '#003C69',
-        contentColor: typography?.contentColor || '#333333',
-        fontFamily: typography?.fontFamily || 'default'
-      },
-      
-      // Type-specific fields
-      heroSubtitle: toStr(heroSubtitle),
-      heroImage: toStr(heroImage),
-      heroButtons: heroButtons || [],
-      features: features || [],
-      stats: stats || [],
-      steps: steps || [],
-      images: images || [],
-      videoUrl: toStr(videoUrl),
-      videoThumbnail: toStr(videoThumbnail),
-      videoPlatform: videoPlatform || 'youtube',
-      accordionItems: accordionItems || [],
-      timelineItems: timelineItems || [],
-      
-      // Card fields
-      cardButtonText: toStr(cardButtonText),
-      cardButtonLink: toStr(cardButtonLink),
-      cardButtonStyle: cardButtonStyle || 'primary',
-      
-      // Animation options
-      animation: {
-        enabled: animation?.enabled || false,
-        type: animation?.type || 'fadeIn',
-        delay: animation?.delay || 0,
-        duration: animation?.duration || 500
-      },
-      
-      // Conditional display
-      displayConditions: {
-        startDate: displayConditions?.startDate,
-        endDate: displayConditions?.endDate,
-        userRoles: displayConditions?.userRoles || [],
-        deviceType: displayConditions?.deviceType || 'all'
-      },
-      
-      // SEO fields
-      seo: {
-        metaTitle: seo?.metaTitle || '',
-        metaDescription: seo?.metaDescription || '',
-        keywords: seo?.keywords || []
-      },
-      
       isVisible: isVisible !== undefined ? Boolean(isVisible) : true,
-      customCSS: toStr(customCSS),
-      customJS: toStr(customJS),
       updatedAt: new Date(),
     };
+
+    // Add layout if provided
+    if (layout && typeof layout === 'object') {
+      docData.layout = layout;
+    }
+
+    // Add typography if provided
+    if (typography && typeof typography === 'object') {
+      docData.typography = typography;
+    }
+
+    // Add type-specific fields only if they exist
+    if (heroSubtitle !== undefined) docData.heroSubtitle = toStr(heroSubtitle);
+    if (heroImage !== undefined) docData.heroImage = toStr(heroImage);
+    if (heroButtons && Array.isArray(heroButtons)) docData.heroButtons = heroButtons;
+    if (features && Array.isArray(features)) docData.features = features;
+    if (stats && Array.isArray(stats)) docData.stats = stats;
+    if (steps && Array.isArray(steps)) docData.steps = steps;
+    if (images && Array.isArray(images)) docData.images = images;
+    if (videoUrl !== undefined) docData.videoUrl = toStr(videoUrl);
+    if (videoThumbnail !== undefined) docData.videoThumbnail = toStr(videoThumbnail);
+    if (videoPlatform !== undefined) docData.videoPlatform = videoPlatform;
+    if (accordionItems && Array.isArray(accordionItems)) docData.accordionItems = accordionItems;
+    if (timelineItems && Array.isArray(timelineItems)) docData.timelineItems = timelineItems;
+    if (cardButtonText !== undefined) docData.cardButtonText = toStr(cardButtonText);
+    if (cardButtonLink !== undefined) docData.cardButtonLink = toStr(cardButtonLink);
+    if (cardButtonStyle !== undefined) docData.cardButtonStyle = cardButtonStyle;
+    if (animation && typeof animation === 'object') docData.animation = animation;
+    if (displayConditions && typeof displayConditions === 'object') docData.displayConditions = displayConditions;
+    if (seo && typeof seo === 'object') docData.seo = seo;
+    if (customCSS !== undefined) docData.customCSS = toStr(customCSS);
+    if (customJS !== undefined) docData.customJS = toStr(customJS);
 
     console.log('[POST] Creating section with data:', JSON.stringify(docData, null, 2));
 
@@ -432,7 +369,13 @@ router.post('/', validateSectionDataPost, async (req, res) => {
     const saved = await doc.save();
 
     console.log('[POST] Section created successfully:', saved._id);
-    res.status(201).json(saved);
+    
+    // Format response
+    const response = saved.toObject();
+    if (!response.layout) response.layout = {};
+    if (!response.typography) response.typography = {};
+    
+    res.status(201).json(response);
   } catch (err) {
     console.error('[POST /api/markdown] Error:', err);
 
@@ -471,15 +414,9 @@ router.put('/:id', validateSectionDataPut, async (req, res) => {
     if (req.body.content !== undefined) updateFields.content = toStr(req.body.content);
     if (req.body.type !== undefined) updateFields.type = req.body.type;
 
-    // Layout fields
-    if (req.body.layout) {
-      updateFields.layout = req.body.layout;
-    }
-
-    // Typography fields
-    if (req.body.typography) {
-      updateFields.typography = req.body.typography;
-    }
+    // Nested object fields - be careful with these
+    if (req.body.layout !== undefined) updateFields.layout = req.body.layout;
+    if (req.body.typography !== undefined) updateFields.typography = req.body.typography;
 
     // Type-specific fields
     const typeSpecificFields = [
@@ -507,7 +444,7 @@ router.put('/:id', validateSectionDataPut, async (req, res) => {
 
     const updated = await HomeContentSection.findByIdAndUpdate(
       req.params.id,
-      updateFields,
+      { $set: updateFields }, // Use $set to avoid overwriting the entire document
       {
         new: true,
         runValidators: true,
@@ -519,7 +456,13 @@ router.put('/:id', validateSectionDataPut, async (req, res) => {
     }
 
     console.log('[PUT] Section updated successfully:', updated._id);
-    res.json(updated);
+    
+    // Format response
+    const response = updated.toObject();
+    if (!response.layout) response.layout = {};
+    if (!response.typography) response.typography = {};
+    
+    res.json(response);
   } catch (err) {
     console.error('[PUT /api/markdown/:id] Error:', err);
 
