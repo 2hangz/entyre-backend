@@ -70,27 +70,24 @@ const validateSectionDataPost = (req, res, next) => {
     }
   }
 
-  // cardButtonText/cardButtonLink (required for card type, optional for others)
+  // cardButtonText/cardButtonLink validation for card type
   if (req.body.type === 'card') {
-    if (cardButtonText === undefined || cardButtonText === null || toStr(cardButtonText).trim() === '') {
+    // For card type, these fields are required
+    if (!cardButtonText || typeof cardButtonText !== 'string' || cardButtonText.trim() === '') {
       errors.push('cardButtonText is required for card type');
-    } else if (typeof cardButtonText !== 'string') {
-      req.body.cardButtonText = toStr(cardButtonText);
+    } else {
+      req.body.cardButtonText = toStr(cardButtonText).trim();
     }
     
-    if (cardButtonLink === undefined || cardButtonLink === null || toStr(cardButtonLink).trim() === '') {
+    if (!cardButtonLink || typeof cardButtonLink !== 'string' || cardButtonLink.trim() === '') {
       errors.push('cardButtonLink is required for card type');
-    } else if (typeof cardButtonLink !== 'string') {
-      req.body.cardButtonLink = toStr(cardButtonLink);
+    } else {
+      req.body.cardButtonLink = toStr(cardButtonLink).trim();
     }
   } else {
-    // For non-card types, set to empty string if provided
-    if (cardButtonText !== undefined && cardButtonText !== null) {
-      req.body.cardButtonText = toStr(cardButtonText);
-    }
-    if (cardButtonLink !== undefined && cardButtonLink !== null) {
-      req.body.cardButtonLink = toStr(cardButtonLink);
-    }
+    // For non-card types, set to empty string
+    req.body.cardButtonText = '';
+    req.body.cardButtonLink = '';
   }
 
   // isVisible (optional, must be boolean if present)
@@ -150,16 +147,17 @@ const validateSectionDataPut = (req, res, next) => {
     }
   }
 
-  // cardButtonText/cardButtonLink validation for card type
+  // Handle cardButtonText/cardButtonLink based on type
   if (req.body.type === 'card') {
-    if (cardButtonText !== undefined && cardButtonText !== null && typeof cardButtonText !== 'string') {
-      req.body.cardButtonText = toStr(cardButtonText);
+    // For card type, validate these fields
+    if (cardButtonText !== undefined && cardButtonText !== null) {
+      req.body.cardButtonText = toStr(cardButtonText).trim();
     }
-    if (cardButtonLink !== undefined && cardButtonLink !== null && typeof cardButtonLink !== 'string') {
-      req.body.cardButtonLink = toStr(cardButtonLink);
+    if (cardButtonLink !== undefined && cardButtonLink !== null) {
+      req.body.cardButtonLink = toStr(cardButtonLink).trim();
     }
   } else if (req.body.type && req.body.type !== 'card') {
-    // For non-card types, clear the card fields
+    // For non-card types, set to empty string
     req.body.cardButtonText = '';
     req.body.cardButtonLink = '';
   }
@@ -242,16 +240,16 @@ router.post('/', validateSectionDataPost, async (req, res) => {
       });
     }
 
-    // ✅ Allow all types including card
+    // ✅ NOW ALLOW: text, key-value, image, card
     let docType = type ? toStr(type) : 'text';
 
-    // ✅ Handle cardButtonText/cardButtonLink properly based on type
+    // Handle cardButtonText/cardButtonLink based on type
     let docCardButtonText = '';
     let docCardButtonLink = '';
     
     if (docType === 'card') {
-      docCardButtonText = toStr(cardButtonText || '').trim();
-      docCardButtonLink = toStr(cardButtonLink || '').trim();
+      docCardButtonText = cardButtonText ? toStr(cardButtonText).trim() : '';
+      docCardButtonLink = cardButtonLink ? toStr(cardButtonLink).trim() : '';
     }
 
     const docData = {
@@ -314,7 +312,7 @@ router.put('/:id', validateSectionDataPut, async (req, res) => {
       updatedAt: new Date(),
     };
 
-    // ✅ Allow all types including card
+    // ✅ NOW ALLOW: text, key-value, image, card
     let docType = type !== undefined ? toStr(type) : undefined;
     if (docType !== undefined) {
       updateFields.type = docType;
@@ -323,12 +321,11 @@ router.put('/:id', validateSectionDataPut, async (req, res) => {
     if (title !== undefined) updateFields.title = toStr(title).trim();
     if (content !== undefined) updateFields.content = toStr(content).trim();
 
-    // ✅ Handle cardButtonText/cardButtonLink properly based on type
+    // Handle cardButtonText/cardButtonLink based on type
     if (docType === 'card') {
-      updateFields.cardButtonText = toStr(cardButtonText || '').trim();
-      updateFields.cardButtonLink = toStr(cardButtonLink || '').trim();
+      updateFields.cardButtonText = cardButtonText !== undefined ? toStr(cardButtonText).trim() : '';
+      updateFields.cardButtonLink = cardButtonLink !== undefined ? toStr(cardButtonLink).trim() : '';
     } else if (docType && docType !== 'card') {
-      // Clear card fields for non-card types
       updateFields.cardButtonText = '';
       updateFields.cardButtonLink = '';
     }
