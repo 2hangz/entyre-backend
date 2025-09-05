@@ -321,13 +321,12 @@ router.put('/:id', validateSectionDataPut, async (req, res) => {
     if (title !== undefined) updateFields.title = toStr(title).trim();
     if (content !== undefined) updateFields.content = toStr(content).trim();
 
-    // Handle cardButtonText/cardButtonLink based on type
-    if (docType === 'card') {
-      updateFields.cardButtonText = cardButtonText !== undefined ? toStr(cardButtonText).trim() : '';
-      updateFields.cardButtonLink = cardButtonLink !== undefined ? toStr(cardButtonLink).trim() : '';
-    } else if (docType && docType !== 'card') {
-      updateFields.cardButtonText = '';
-      updateFields.cardButtonLink = '';
+    // ✅ FIXED: Handle cardButtonText/cardButtonLink properly for all types
+    if (cardButtonText !== undefined) {
+      updateFields.cardButtonText = toStr(cardButtonText).trim();
+    }
+    if (cardButtonLink !== undefined) {
+      updateFields.cardButtonLink = toStr(cardButtonLink).trim();
     }
 
     if (isVisible !== undefined) updateFields.isVisible = Boolean(isVisible);
