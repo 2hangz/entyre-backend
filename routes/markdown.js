@@ -64,7 +64,7 @@ const validateSectionDataPost = (req, res, next) => {
     if (typeof type !== 'string') {
       req.body.type = toStr(type);
     }
-    // ✅ NOW ALLOW: text, key-value, image, card
+
     if (!['text', 'key-value', 'image', 'card'].includes(req.body.type)) {
       errors.push('type must be one of: text, key-value, image, card');
     }
