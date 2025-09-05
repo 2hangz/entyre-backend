@@ -20,15 +20,14 @@ const HomeContentSectionSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['text', 'key-value', 'image', 'card'],
+      enum: ['text', 'key-value', 'image', 'card'], 
       default: 'text'
     },
-    // For 'card' type, you may want to store button text and button link
     cardButtonText: {
       type: String,
       trim: true,
       default: '',
-      required: function() {
+      required: function () {
         return this.type === 'card';
       }
     },
@@ -36,7 +35,7 @@ const HomeContentSectionSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: '',
-      required: function() {
+      required: function () {
         return this.type === 'card';
       }
     },
@@ -52,36 +51,26 @@ const HomeContentSectionSchema = new mongoose.Schema(
   { versionKey: false }
 );
 
+
 HomeContentSectionSchema.pre('save', function (next) {
   this.updatedAt = new Date();
-  // Ensure cardButtonText and cardButtonLink are strings for 'card' type
   if (this.type === 'card') {
-    if (typeof this.cardButtonText !== 'string') {
-      this.cardButtonText = this.cardButtonText ? String(this.cardButtonText) : '';
-    }
-    if (typeof this.cardButtonLink !== 'string') {
-      this.cardButtonLink = this.cardButtonLink ? String(this.cardButtonLink) : '';
-    }
+    this.cardButtonText = this.cardButtonText ? String(this.cardButtonText) : '';
+    this.cardButtonLink = this.cardButtonLink ? String(this.cardButtonLink) : '';
   } else {
-    // For non-card types, always set to empty string
     this.cardButtonText = '';
     this.cardButtonLink = '';
   }
   next();
 });
 
-// Also ensure on update (findOneAndUpdate) that cardButtonText/cardButtonLink are handled
+
 HomeContentSectionSchema.pre('findOneAndUpdate', function (next) {
   const update = this.getUpdate();
   if (update.type === 'card') {
-    if (update.cardButtonText !== undefined && typeof update.cardButtonText !== 'string') {
-      update.cardButtonText = update.cardButtonText ? String(update.cardButtonText) : '';
-    }
-    if (update.cardButtonLink !== undefined && typeof update.cardButtonLink !== 'string') {
-      update.cardButtonLink = update.cardButtonLink ? String(update.cardButtonLink) : '';
-    }
-  } else {
-    // For non-card types, always set to empty string
+    update.cardButtonText = update.cardButtonText ? String(update.cardButtonText) : '';
+    update.cardButtonLink = update.cardButtonLink ? String(update.cardButtonLink) : '';
+  } else if (update.type) {
     update.cardButtonText = '';
     update.cardButtonLink = '';
   }

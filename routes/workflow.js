@@ -1,195 +1,149 @@
 const express = require('express');
-const multer = require('multer');
-const cloudinary = require('../utils/cloudinary');
-const fs = require('fs');
-const path = require('path');
-
 const router = express.Router();
-const Workflow = require('../models/Workflow');
+const HomeContentSection = require('../models/HomeContent');
 
-const UPLOAD_DIR = path.join(__dirname, '../uploads');
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+// Helper
+function toInt(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : NaN;
+}
+function toStr(val) {
+  if (val === undefined || val === null) return '';
+  return String(val);
 }
 
-const upload = multer({ dest: UPLOAD_DIR });
+// ✅ 校验 POST 数据
+const validateSectionDataPost = (req, res, next) => {
+  const { sectionIndex, title, content, type } = req.body;
+  const errors = [];
 
-// Get all workflows
+  if (!Number.isInteger(Number(sectionIndex))) {
+    errors.push('sectionIndex must be an integer');
+  }
+  if (!title || typeof title !== 'string') {
+    errors.push('title is required and must be a string');
+  }
+  if (!content || typeof content !== 'string') {
+    errors.push('content is required and must be a string');
+  }
+  if (type && !['text', 'key-value', 'image', 'card'].includes(type)) {
+    errors.push('type must be one of: text, key-value, image, card');
+  }
+
+  if (errors.length > 0) {
+    return res.status(400).json({ error: 'Validation failed', details: errors, received: req.body });
+  }
+  next();
+};
+
+// ✅ 校验 PUT 数据
+const validateSectionDataPut = (req, res, next) => {
+  const { title, content, type } = req.body;
+  const errors = [];
+
+  if (title !== undefined && typeof title !== 'string') {
+    errors.push('title must be a string');
+  }
+  if (content !== undefined && typeof content !== 'string') {
+    errors.push('content must be a string');
+  }
+  if (type !== undefined && !['text', 'key-value', 'image', 'card'].includes(type)) {
+    errors.push('type must be one of: text, key-value, image, card');
+  }
+
+  if (errors.length > 0) {
+    return res.status(400).json({ error: 'Validation failed', details: errors, received: req.body });
+  }
+  next();
+};
+
+// GET 所有 sections
 router.get('/', async (req, res) => {
   try {
-    const workflows = await Workflow.find().sort({ createdAt: -1 });
-    res.json(workflows);
+    const sections = await HomeContentSection.find().sort({ sectionIndex: 1 });
+    res.json(sections);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch workflows', details: err.message });
+    res.status(500).json({ error: 'Failed to fetch home content sections', message: err.message });
   }
 });
 
-// Get a single workflow
-router.get('/:id', async (req, res) => {
+// GET 按 index 查 section
+router.get('/:sectionIndex', async (req, res) => {
+  const sectionIndex = toInt(req.params.sectionIndex);
+  if (!Number.isInteger(sectionIndex)) {
+    return res.status(400).json({ error: 'Invalid section index' });
+  }
+  const section = await HomeContentSection.findOne({ sectionIndex });
+  if (!section) return res.status(404).json({ error: 'Section not found' });
+  res.json(section);
+});
+
+// POST 新建 section
+router.post('/', validateSectionDataPost, async (req, res) => {
   try {
-    const workflow = await Workflow.findById(req.params.id);
-    if (!workflow) {
-      return res.status(404).json({ error: 'Workflow not found' });
+    const { sectionIndex, title, content, type, cardButtonText, cardButtonLink, isVisible } = req.body;
+
+    const exists = await HomeContentSection.findOne({ sectionIndex });
+    if (exists) {
+      return res.status(409).json({ error: `Section index ${sectionIndex} already exists`, existingSection: exists });
     }
-    res.json(workflow);
+
+    const docData = {
+      sectionIndex: Number(sectionIndex),
+      title: toStr(title).trim(),
+      content: toStr(content).trim(),
+      type: type || 'text',
+      cardButtonText: type === 'card' ? toStr(cardButtonText) : '',
+      cardButtonLink: type === 'card' ? toStr(cardButtonLink) : '',
+      isVisible: isVisible !== undefined ? Boolean(isVisible) : true,
+    };
+
+    const doc = new HomeContentSection(docData);
+    const saved = await doc.save();
+    res.status(201).json(saved);
   } catch (err) {
-    res.status(500).json({ error: 'Error fetching workflow', details: err.message });
+    res.status(500).json({ error: 'Error creating section', message: err.message });
   }
 });
 
-// Create a new workflow (supports file upload to Cloudinary)
-router.post('/', upload.single('file'), async (req, res) => {
+// PUT 更新 section
+router.put('/:id', validateSectionDataPut, async (req, res) => {
   try {
-    let fileUrl = null;
-    let filePublicId = null;
+    const { title, content, type, cardButtonText, cardButtonLink, isVisible } = req.body;
+    const updateFields = { updatedAt: new Date() };
 
-    // If a file is uploaded, upload it to Cloudinary
-    if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: 'entyre/workflowFiles'
-      });
-      fileUrl = result.secure_url;
-      filePublicId = result.public_id;
-      // Delete local temp file
-      await fs.promises.unlink(req.file.path);
+    if (title !== undefined) updateFields.title = toStr(title).trim();
+    if (content !== undefined) updateFields.content = toStr(content).trim();
+    if (type !== undefined) updateFields.type = type;
+    if (type === 'card') {
+      updateFields.cardButtonText = toStr(cardButtonText);
+      updateFields.cardButtonLink = toStr(cardButtonLink);
+    } else if (type) {
+      updateFields.cardButtonText = '';
+      updateFields.cardButtonLink = '';
     }
+    if (isVisible !== undefined) updateFields.isVisible = Boolean(isVisible);
 
-    // Parse body
-    let { name, status, description, nodes, connections, nodePositions } = req.body;
-
-    if (typeof nodes === 'string') {
-      try { nodes = JSON.parse(nodes); } catch {}
-    }
-    if (typeof connections === 'string') {
-      try { connections = JSON.parse(connections); } catch {}
-    }
-    if (typeof nodePositions === 'string') {
-      try { nodePositions = JSON.parse(nodePositions); } catch {}
-    }
-
-    // Validate name
-    if (!name || typeof name !== 'string') {
-      return res.status(400).json({ error: 'Workflow name is required and must be a string' });
-    }
-    // Validate nodes
-    if (nodes && !Array.isArray(nodes)) {
-      return res.status(400).json({ error: 'nodes must be an array' });
-    }
-    // Validate connections
-    if (connections && !Array.isArray(connections)) {
-      return res.status(400).json({ error: 'connections must be an array' });
-    }
-    // Validate nodePositions
-    if (nodePositions && (typeof nodePositions !== 'object' || Array.isArray(nodePositions))) {
-      return res.status(400).json({ error: 'nodePositions must be an object' });
-    }
-
-    // Directly store, mongoose schema will validate
-    const workflow = new Workflow({
-      name,
-      status,
-      description,
-      nodes: nodes || [],
-      connections: connections || [],
-      nodePositions: nodePositions && Object.keys(nodePositions).length > 0 ? nodePositions : undefined,
-      fileUrl,
-      filePublicId
+    const updated = await HomeContentSection.findByIdAndUpdate(req.params.id, updateFields, {
+      new: true,
+      runValidators: true
     });
 
-    await workflow.save();
-    res.status(201).json(workflow);
-  } catch (err) {
-    res.status(400).json({ error: 'Failed to create workflow', details: err.message });
-  }
-});
-
-// Update workflow (supports file upload to Cloudinary)
-router.put('/:id', upload.single('file'), async (req, res) => {
-  try {
-    let { name, status, description, nodes, connections, nodePositions } = req.body;
-
-    // If form-data, nodes/connections/nodePositions may be strings, need to parse
-    if (typeof nodes === 'string') {
-      try { nodes = JSON.parse(nodes); } catch {}
-    }
-    if (typeof connections === 'string') {
-      try { connections = JSON.parse(connections); } catch {}
-    }
-    if (typeof nodePositions === 'string') {
-      try { nodePositions = JSON.parse(nodePositions); } catch {}
-    }
-
-    // Validate name
-    if ('name' in req.body && typeof name !== 'string') {
-      return res.status(400).json({ error: 'Workflow name must be a string' });
-    }
-    // Validate nodes
-    if ('nodes' in req.body && nodes && !Array.isArray(nodes)) {
-      return res.status(400).json({ error: 'nodes must be an array' });
-    }
-    // Validate connections
-    if ('connections' in req.body && connections && !Array.isArray(connections)) {
-      return res.status(400).json({ error: 'connections must be an array' });
-    }
-    // Validate nodePositions
-    if ('nodePositions' in req.body && nodePositions && (typeof nodePositions !== 'object' || Array.isArray(nodePositions))) {
-      return res.status(400).json({ error: 'nodePositions must be an object' });
-    }
-
-    // Only update fields that are provided
-    const updateFields = {};
-    if ('name' in req.body) updateFields.name = name;
-    if ('status' in req.body) updateFields.status = status;
-    if ('description' in req.body) updateFields.description = description;
-    if ('nodes' in req.body) updateFields.nodes = nodes;
-    if ('connections' in req.body) updateFields.connections = connections;
-    if ('nodePositions' in req.body) {
-      updateFields.nodePositions = nodePositions && Object.keys(nodePositions).length > 0 ? nodePositions : undefined;
-    }
-
-    // File upload logic
-    if (req.file) {
-      // Find the original workflow and delete the old Cloudinary file
-      const workflow = await Workflow.findById(req.params.id);
-      if (workflow && workflow.filePublicId) {
-        await cloudinary.uploader.destroy(workflow.filePublicId);
-      }
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: 'entyre/workflowFiles'
-      });
-      updateFields.fileUrl = result.secure_url;
-      updateFields.filePublicId = result.public_id;
-      await fs.promises.unlink(req.file.path);
-    }
-
-    const updated = await Workflow.findByIdAndUpdate(
-      req.params.id,
-      updateFields,
-      { new: true, runValidators: true }
-    );
-    if (!updated) {
-      return res.status(404).json({ error: 'Workflow not found' });
-    }
+    if (!updated) return res.status(404).json({ error: 'Section not found' });
     res.json(updated);
   } catch (err) {
-    res.status(400).json({ error: 'Failed to update workflow', details: err.message });
+    res.status(500).json({ error: 'Error updating section', message: err.message });
   }
 });
 
-// Delete workflow (also deletes Cloudinary file)
+// DELETE 删除 section
 router.delete('/:id', async (req, res) => {
   try {
-    const deleted = await Workflow.findByIdAndDelete(req.params.id);
-    if (!deleted) {
-      return res.status(404).json({ error: 'Workflow not found' });
-    }
-    // Delete Cloudinary file
-    if (deleted.filePublicId) {
-      await cloudinary.uploader.destroy(deleted.filePublicId);
-    }
-    res.json({ message: 'Workflow deleted' });
+    const deleted = await HomeContentSection.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ error: 'Section not found' });
+    res.json({ message: 'Section deleted successfully', deletedSection: deleted });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to delete workflow', details: err.message });
+    res.status(500).json({ error: 'Error deleting section', message: err.message });
   }
 });
 
