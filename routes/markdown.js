@@ -64,8 +64,9 @@ const validateSectionDataPost = (req, res, next) => {
     if (typeof type !== 'string') {
       req.body.type = toStr(type);
     }
-    if (!['text', 'key-value', 'image', 'card'].includes(req.body.type)) {
-      errors.push('type must be one of: text, key-value, image, card');
+    // Only allow: text, key-value, image (NO card)
+    if (!['text', 'key-value', 'image'].includes(req.body.type)) {
+      errors.push('type must be one of: text, key-value, image');
     }
   }
 
@@ -132,8 +133,9 @@ const validateSectionDataPut = (req, res, next) => {
     if (typeof type !== 'string') {
       req.body.type = toStr(type);
     }
-    if (!['text', 'key-value', 'image', 'card'].includes(req.body.type)) {
-      errors.push('type must be one of: text, key-value, image, card');
+    // Only allow: text, key-value, image (NO card)
+    if (!['text', 'key-value', 'image'].includes(req.body.type)) {
+      errors.push('type must be one of: text, key-value, image');
     }
   }
 
@@ -223,14 +225,12 @@ router.post('/', validateSectionDataPost, async (req, res) => {
       });
     }
 
-    // Always set cardButtonText/cardButtonLink to empty string for non-card types
+    // Only allow: text, key-value, image (NO card)
     let docType = type ? toStr(type) : 'text';
+
+    // cardButtonText/cardButtonLink are not used for allowed types, always set to empty string
     let docCardButtonText = '';
     let docCardButtonLink = '';
-    if (docType === 'card') {
-      docCardButtonText = cardButtonText !== undefined ? toStr(cardButtonText) : '';
-      docCardButtonLink = cardButtonLink !== undefined ? toStr(cardButtonLink) : '';
-    }
 
     const docData = {
       sectionIndex,
@@ -292,7 +292,7 @@ router.put('/:id', validateSectionDataPut, async (req, res) => {
       updatedAt: new Date(),
     };
 
-    // Always set cardButtonText/cardButtonLink to empty string for non-card types
+    // Only allow: text, key-value, image (NO card)
     let docType = type !== undefined ? toStr(type) : undefined;
     if (docType !== undefined) {
       updateFields.type = docType;
@@ -301,14 +301,9 @@ router.put('/:id', validateSectionDataPut, async (req, res) => {
     if (title !== undefined) updateFields.title = toStr(title).trim();
     if (content !== undefined) updateFields.content = toStr(content).trim();
 
-    if (docType === 'card') {
-      updateFields.cardButtonText = cardButtonText !== undefined ? toStr(cardButtonText) : '';
-      updateFields.cardButtonLink = cardButtonLink !== undefined ? toStr(cardButtonLink) : '';
-    } else if (docType !== undefined) {
-      // If type is being changed to non-card, forcibly clear these fields
-      updateFields.cardButtonText = '';
-      updateFields.cardButtonLink = '';
-    }
+    // cardButtonText/cardButtonLink are not used for allowed types, always set to empty string
+    updateFields.cardButtonText = '';
+    updateFields.cardButtonLink = '';
 
     if (isVisible !== undefined) updateFields.isVisible = Boolean(isVisible);
 
