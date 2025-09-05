@@ -64,20 +64,31 @@ const validateSectionDataPost = (req, res, next) => {
     if (typeof type !== 'string') {
       req.body.type = toStr(type);
     }
-    // Only allow: text, key-value, image (NO card)
-    if (!['text', 'key-value', 'image'].includes(req.body.type)) {
-      errors.push('type must be one of: text, key-value, image');
+    // ✅ NOW ALLOW: text, key-value, image, card
+    if (!['text', 'key-value', 'image', 'card'].includes(req.body.type)) {
+      errors.push('type must be one of: text, key-value, image, card');
     }
   }
 
-  // cardButtonText/cardButtonLink (optional, must be string if present)
-  if (cardButtonText !== undefined && cardButtonText !== null) {
-    if (typeof cardButtonText !== 'string') {
+  // cardButtonText/cardButtonLink (required for card type, optional for others)
+  if (req.body.type === 'card') {
+    if (cardButtonText === undefined || cardButtonText === null || toStr(cardButtonText).trim() === '') {
+      errors.push('cardButtonText is required for card type');
+    } else if (typeof cardButtonText !== 'string') {
       req.body.cardButtonText = toStr(cardButtonText);
     }
-  }
-  if (cardButtonLink !== undefined && cardButtonLink !== null) {
-    if (typeof cardButtonLink !== 'string') {
+    
+    if (cardButtonLink === undefined || cardButtonLink === null || toStr(cardButtonLink).trim() === '') {
+      errors.push('cardButtonLink is required for card type');
+    } else if (typeof cardButtonLink !== 'string') {
+      req.body.cardButtonLink = toStr(cardButtonLink);
+    }
+  } else {
+    // For non-card types, set to empty string if provided
+    if (cardButtonText !== undefined && cardButtonText !== null) {
+      req.body.cardButtonText = toStr(cardButtonText);
+    }
+    if (cardButtonLink !== undefined && cardButtonLink !== null) {
       req.body.cardButtonLink = toStr(cardButtonLink);
     }
   }
@@ -133,18 +144,24 @@ const validateSectionDataPut = (req, res, next) => {
     if (typeof type !== 'string') {
       req.body.type = toStr(type);
     }
-    // Only allow: text, key-value, image (NO card)
-    if (!['text', 'key-value', 'image'].includes(req.body.type)) {
-      errors.push('type must be one of: text, key-value, image');
+    // ✅ NOW ALLOW: text, key-value, image, card
+    if (!['text', 'key-value', 'image', 'card'].includes(req.body.type)) {
+      errors.push('type must be one of: text, key-value, image, card');
     }
   }
 
-  // cardButtonText/cardButtonLink (optional, must be string if present)
-  if (cardButtonText !== undefined && cardButtonText !== null && typeof cardButtonText !== 'string') {
-    req.body.cardButtonText = toStr(cardButtonText);
-  }
-  if (cardButtonLink !== undefined && cardButtonLink !== null && typeof cardButtonLink !== 'string') {
-    req.body.cardButtonLink = toStr(cardButtonLink);
+  // cardButtonText/cardButtonLink validation for card type
+  if (req.body.type === 'card') {
+    if (cardButtonText !== undefined && cardButtonText !== null && typeof cardButtonText !== 'string') {
+      req.body.cardButtonText = toStr(cardButtonText);
+    }
+    if (cardButtonLink !== undefined && cardButtonLink !== null && typeof cardButtonLink !== 'string') {
+      req.body.cardButtonLink = toStr(cardButtonLink);
+    }
+  } else if (req.body.type && req.body.type !== 'card') {
+    // For non-card types, clear the card fields
+    req.body.cardButtonText = '';
+    req.body.cardButtonLink = '';
   }
 
   // isVisible (optional, must be boolean if present)
@@ -225,12 +242,17 @@ router.post('/', validateSectionDataPost, async (req, res) => {
       });
     }
 
-    // Only allow: text, key-value, image (NO card)
+    // ✅ Allow all types including card
     let docType = type ? toStr(type) : 'text';
 
-    // cardButtonText/cardButtonLink are not used for allowed types, always set to empty string
+    // ✅ Handle cardButtonText/cardButtonLink properly based on type
     let docCardButtonText = '';
     let docCardButtonLink = '';
+    
+    if (docType === 'card') {
+      docCardButtonText = toStr(cardButtonText || '').trim();
+      docCardButtonLink = toStr(cardButtonLink || '').trim();
+    }
 
     const docData = {
       sectionIndex,
@@ -292,7 +314,7 @@ router.put('/:id', validateSectionDataPut, async (req, res) => {
       updatedAt: new Date(),
     };
 
-    // Only allow: text, key-value, image (NO card)
+    // ✅ Allow all types including card
     let docType = type !== undefined ? toStr(type) : undefined;
     if (docType !== undefined) {
       updateFields.type = docType;
@@ -301,9 +323,15 @@ router.put('/:id', validateSectionDataPut, async (req, res) => {
     if (title !== undefined) updateFields.title = toStr(title).trim();
     if (content !== undefined) updateFields.content = toStr(content).trim();
 
-    // cardButtonText/cardButtonLink are not used for allowed types, always set to empty string
-    updateFields.cardButtonText = '';
-    updateFields.cardButtonLink = '';
+    // ✅ Handle cardButtonText/cardButtonLink properly based on type
+    if (docType === 'card') {
+      updateFields.cardButtonText = toStr(cardButtonText || '').trim();
+      updateFields.cardButtonLink = toStr(cardButtonLink || '').trim();
+    } else if (docType && docType !== 'card') {
+      // Clear card fields for non-card types
+      updateFields.cardButtonText = '';
+      updateFields.cardButtonLink = '';
+    }
 
     if (isVisible !== undefined) updateFields.isVisible = Boolean(isVisible);
 
