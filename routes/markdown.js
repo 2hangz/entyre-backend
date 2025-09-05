@@ -8,12 +8,12 @@ function toInt(value) {
   return Number.isFinite(n) ? n : NaN;
 }
 
-// Validation for POST (requires sectionIndex, title, description)
+// Validation for POST (requires sectionIndex, title, content)
 const validateSectionDataPost = (req, res, next) => {
   const {
     sectionIndex,
     title,
-    description,
+    content,
     type,
     cardButtonText,
     cardButtonLink,
@@ -40,11 +40,11 @@ const validateSectionDataPost = (req, res, next) => {
     errors.push('title must be a string');
   }
 
-  // description required and must be string
-  if (description === undefined || description === null) {
-    errors.push('description is required');
-  } else if (typeof description !== 'string') {
-    errors.push('description must be a string');
+  // content required and must be string
+  if (content === undefined || content === null) {
+    errors.push('content is required');
+  } else if (typeof content !== 'string') {
+    errors.push('content must be a string');
   }
 
   // type (optional, but if present must be valid)
@@ -84,7 +84,7 @@ const validateSectionDataPost = (req, res, next) => {
 const validateSectionDataPut = (req, res, next) => {
   const {
     title,
-    description,
+    content,
     type,
     cardButtonText,
     cardButtonLink,
@@ -97,9 +97,9 @@ const validateSectionDataPut = (req, res, next) => {
     errors.push('title must be a string');
   }
 
-  // description (optional, must be string if present)
-  if (description !== undefined && description !== null && typeof description !== 'string') {
-    errors.push('description must be a string');
+  // content (optional, must be string if present)
+  if (content !== undefined && content !== null && typeof content !== 'string') {
+    errors.push('content must be a string');
   }
 
   // type (optional, must be valid if present)
@@ -174,7 +174,7 @@ router.post('/', validateSectionDataPost, async (req, res) => {
     const {
       sectionIndex,
       title,
-      description,
+      content,
       type,
       cardButtonText,
       cardButtonLink,
@@ -192,7 +192,7 @@ router.post('/', validateSectionDataPost, async (req, res) => {
     const docData = {
       sectionIndex,
       title: (title || '').trim(),
-      description: (description || '').trim(),
+      content: (content || '').trim(),
       type: type || 'text',
       cardButtonText: cardButtonText || '',
       cardButtonLink: cardButtonLink || '',
@@ -238,7 +238,7 @@ router.put('/:id', validateSectionDataPut, async (req, res) => {
   try {
     const {
       title,
-      description,
+      content,
       type,
       cardButtonText,
       cardButtonLink,
@@ -250,7 +250,7 @@ router.put('/:id', validateSectionDataPut, async (req, res) => {
     };
 
     if (title !== undefined) updateFields.title = title.trim();
-    if (description !== undefined) updateFields.description = description.trim();
+    if (content !== undefined) updateFields.content = content.trim();
     if (type !== undefined) updateFields.type = type;
     if (cardButtonText !== undefined) updateFields.cardButtonText = cardButtonText;
     if (cardButtonLink !== undefined) updateFields.cardButtonLink = cardButtonLink;
