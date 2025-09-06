@@ -35,7 +35,7 @@ const FeatureSchema = new mongoose.Schema({
 
 const StatSchema = new mongoose.Schema({
   number: { type: String, required: true },
-  label: { type: String, required: true },
+  label: { type: String },
   description: { type: String, default: '' },
   color: { type: String, default: '#CE1F2C' }
 }, { _id: false });
