@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 
-// Define sub-schemas for nested objects to avoid Mongoose validation issues
 const LayoutSchema = new mongoose.Schema({
   containerWidth: { type: String, default: 'contained', enum: ['full', 'contained', 'narrow'] },
   padding: { type: String, default: 'normal', enum: ['none', 'small', 'normal', 'large'] },
@@ -56,7 +55,7 @@ const ImageSchema = new mongoose.Schema({
 
 const AnimationSchema = new mongoose.Schema({
   enabled: { type: Boolean, default: false },
-  animationType: { type: String, default: 'fadeIn' }, // Changed from 'type' to avoid conflicts
+  animationType: { type: String, default: 'fadeIn' },
   delay: { type: Number, default: 0 },
   duration: { type: Number, default: 500 }
 }, { _id: false });
@@ -87,12 +86,10 @@ const TimelineItemSchema = new mongoose.Schema({
   image: { type: String, default: '' }
 }, { _id: false });
 
-// Main schema
 const HomeContentSectionSchema = new mongoose.Schema(
   {
     sectionIndex: {
       type: Number,
-      required: true,
       unique: true,
       index: true
     },
@@ -133,182 +130,64 @@ const HomeContentSectionSchema = new mongoose.Schema(
       ], 
       default: 'text'
     },
-    
-    // Use the sub-schemas for nested objects
-    layout: {
-      type: LayoutSchema,
-      default: () => ({})
-    },
-    
-    typography: {
-      type: TypographySchema,
-      default: () => ({})
-    },
-    
-    // Card-specific fields
+    layout: { type: LayoutSchema, default: () => ({}) },
+    typography: { type: TypographySchema, default: () => ({}) },
     cardButtonText: { type: String, trim: true, default: '' },
     cardButtonLink: { type: String, trim: true, default: '' },
     cardButtonStyle: { type: String, default: 'primary', enum: ['primary', 'secondary', 'outline', 'ghost'] },
-    
-    // Hero-specific fields
     heroSubtitle: { type: String, trim: true, default: '' },
     heroImage: { type: String, trim: true, default: '' },
     heroButtons: [HeroButtonSchema],
-    
-    // Features grid fields
     features: [FeatureSchema],
-    
-    // Stats fields
     stats: [StatSchema],
-    
-    // Process steps fields
     steps: [StepSchema],
-    
-    // Gallery fields
     images: [ImageSchema],
-    
-    // Video fields
     videoUrl: { type: String, trim: true, default: '' },
     videoThumbnail: { type: String, trim: true, default: '' },
     videoPlatform: { type: String, default: 'youtube', enum: ['youtube', 'vimeo', 'custom'] },
-    
-    // Accordion fields
     accordionItems: [AccordionItemSchema],
-    
-    // Timeline fields
     timelineItems: [TimelineItemSchema],
-    
-    // Animation and interaction options
-    animation: {
-      type: AnimationSchema,
-      default: () => ({})
-    },
-    
-    // Conditional display
-    displayConditions: {
-      type: DisplayConditionsSchema,
-      default: () => ({})
-    },
-    
-    // SEO fields
-    seo: {
-      type: SEOSchema,
-      default: () => ({})
-    },
-    
-    // General fields
+    animation: { type: AnimationSchema, default: () => ({}) },
+    displayConditions: { type: DisplayConditionsSchema, default: () => ({}) },
+    seo: { type: SEOSchema, default: () => ({}) },
     isVisible: { type: Boolean, default: true },
     customCSS: { type: String, default: '' },
     customJS: { type: String, default: '' },
-    
     updatedAt: { type: Date, default: Date.now }
   },
   { 
     versionKey: false,
-    // Enable strict mode to help catch validation issues
     strict: true
   }
 );
 
-// Pre-save middleware to handle complex data
 HomeContentSectionSchema.pre('save', function (next) {
   this.updatedAt = new Date();
-  
-  // Ensure layout defaults are set
-  if (!this.layout) {
-    this.layout = {};
-  }
-  
-  // Ensure typography defaults are set
-  if (!this.typography) {
-    this.typography = {};
-  }
-  
-  // Set default values based on type
-  if (this.type === 'hero') {
-    if (!this.layout.background || this.layout.background === 'transparent') {
-      this.layout.background = 'gradient-1';
-    }
-    if (!this.heroButtons) {
-      this.heroButtons = [];
-    }
-  }
-  
-  if (this.type === 'features-grid') {
-    if (this.layout.columns === 1) {
-      this.layout.columns = 3;
-    }
-    if (!this.features) {
-      this.features = [];
-    }
-  }
-  
-  // Initialize type-specific arrays if they don't exist
-  const typeArrayFields = {
-    'hero': 'heroButtons',
-    'features-grid': 'features',
-    'stats': 'stats',
-    'process-steps': 'steps',
-    'gallery': 'images',
-    'accordion': 'accordionItems',
-    'timeline': 'timelineItems'
-  };
-  
-  const fieldName = typeArrayFields[this.type];
-  if (fieldName && !this[fieldName]) {
-    this[fieldName] = [];
-  }
-  
-  // Clean up unused fields based on type (optional - helps keep data clean)
-  if (this.type !== 'card') {
-    this.cardButtonText = '';
-    this.cardButtonLink = '';
-  }
-  
-  if (this.type !== 'hero') {
-    this.heroSubtitle = '';
-    this.heroImage = '';
-    if (this.heroButtons && this.heroButtons.length === 0) {
-      this.heroButtons = undefined;
-    }
-  }
-  
-  if (this.type !== 'video') {
-    this.videoUrl = '';
-    this.videoThumbnail = '';
-  }
-  
+  if (!this.layout) this.layout = {};
+  if (!this.typography) this.typography = {};
   next();
 });
 
-// Pre-update middleware
 HomeContentSectionSchema.pre('findOneAndUpdate', function (next) {
   const update = this.getUpdate();
-  
   if (update.$set) {
     update.$set.updatedAt = new Date();
   } else {
     update.updatedAt = new Date();
   }
-  
   next();
 });
 
-// Add some helpful methods
 HomeContentSectionSchema.methods.toPublicJSON = function() {
   const obj = this.toObject();
-  
-  // Ensure nested objects have defaults
   if (!obj.layout) obj.layout = {};
   if (!obj.typography) obj.typography = {};
   if (!obj.animation) obj.animation = {};
   if (!obj.displayConditions) obj.displayConditions = {};
   if (!obj.seo) obj.seo = {};
-  
   return obj;
 };
 
-// Static method to get sections by type
 HomeContentSectionSchema.statics.findByType = function(type) {
   return this.find({ type, isVisible: true }).sort({ sectionIndex: 1 });
 };
