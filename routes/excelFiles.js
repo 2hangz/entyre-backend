@@ -4,36 +4,53 @@ const path = require('path');
 const fs = require('fs');
 const XLSX = require('xlsx');
 const ExcelFile = require('../models/ExcelFiles');
-const cloudinary = require('cloudinary').v2;
 
 const router = express.Router();
 
-// Configure Cloudinary (make sure to set environment variables)
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+// 配置 Cloudinary（如果还没配置）
+let cloudinary;
+try {
+  cloudinary = require('cloudinary').v2;
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
+  console.log('✅ Cloudinary configured successfully');
+} catch (error) {
+  console.error('❌ Cloudinary configuration failed:', error.message);
+}
 
-// Configure upload directory
+// 检查上传目录
 const UPLOAD_DIR = path.join(__dirname, '../uploads');
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  console.log('📁 Created uploads directory:', UPLOAD_DIR);
 }
 
-// Configure multer
+// 配置 multer 并添加详细日志
 const upload = multer({ 
   dest: UPLOAD_DIR,
   fileFilter: (req, file, cb) => {
+    console.log('📎 File filter check:', {
+      fieldname: file.fieldname,
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size
+    });
+    
     const allowedMimes = [
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'application/vnd.ms-excel',
       'application/vnd.ms-excel.sheet.macroEnabled.12'
     ];
+    
     if (allowedMimes.includes(file.mimetype)) {
+      console.log('✅ File type accepted:', file.mimetype);
       cb(null, true);
     } else {
-      cb(new Error('Only Excel files (.xlsx, .xls) are allowed'), false);
+      console.log('❌ File type rejected:', file.mimetype);
+      cb(new Error(`不支持的文件类型: ${file.mimetype}. 只允许 Excel 文件 (.xlsx, .xls)`), false);
     }
   },
   limits: {
@@ -41,9 +58,63 @@ const upload = multer({
   }
 });
 
-// Utility function: Analyze Excel file
+// 添加请求日志中间件
+router.use((req, res, next) => {
+  console.log(`📨 ${req.method} ${req.originalUrl}`, {
+    headers: {
+      'content-type': req.headers['content-type'],
+      'content-length': req.headers['content-length']
+    },
+    body: req.method === 'GET' ? 'N/A' : 'FormData'
+  });
+  next();
+});
+
+// Multer错误处理中间件
+const handleMulterError = (err, req, res, next) => {
+  console.error('🚨 Multer error:', err);
+  
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ 
+        error: '文件大小超过限制 (最大 10MB)',
+        code: 'FILE_SIZE_LIMIT'
+      });
+    }
+    if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+      return res.status(400).json({ 
+        error: `意外的文件字段: ${err.field || 'unknown'}`,
+        code: 'UNEXPECTED_FILE_FIELD',
+        expected: 'file'
+      });
+    }
+    if (err.code === 'LIMIT_FILE_COUNT') {
+      return res.status(400).json({ 
+        error: '文件数量超过限制',
+        code: 'FILE_COUNT_LIMIT'
+      });
+    }
+    return res.status(400).json({ 
+      error: `文件上传错误: ${err.message}`,
+      code: err.code
+    });
+  }
+  
+  // 自定义错误（如文件类型不匹配）
+  if (err.message) {
+    return res.status(400).json({ 
+      error: err.message,
+      code: 'FILE_VALIDATION_ERROR'
+    });
+  }
+  
+  next(err);
+};
+
+// 工具函数：分析 Excel 文件
 function analyzeExcelFile(filePath) {
   try {
+    console.log('📊 Analyzing Excel file:', filePath);
     const workbook = XLSX.readFile(filePath);
     const metadata = {
       sheetNames: workbook.SheetNames,
@@ -53,21 +124,17 @@ function analyzeExcelFile(filePath) {
       hasWeights: false
     };
     
-    // Analyze each sheet
     workbook.SheetNames.forEach(sheetName => {
       const worksheet = workbook.Sheets[sheetName];
       const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
       
       if (data.length > 0) {
-        // Store column info (assume row 3 is header)
         const headerRowIndex = Math.min(2, data.length - 1);
         if (data[headerRowIndex]) {
           metadata.columnInfo[sheetName] = data[headerRowIndex].filter(col => col !== null && col !== undefined);
         }
-        
         metadata.rowCount = Math.max(metadata.rowCount, data.length);
         
-        // Check if there is a weight row
         const hasWeightRow = data.some(row => 
           row && row[0] && row[0].toString().toLowerCase().includes('weight')
         );
@@ -77,9 +144,15 @@ function analyzeExcelFile(filePath) {
       }
     });
     
+    console.log('✅ Excel analysis completed:', {
+      sheets: metadata.sheetNames.length,
+      rows: metadata.rowCount,
+      hasWeights: metadata.hasWeights
+    });
+    
     return metadata;
   } catch (error) {
-    console.error('Error analyzing Excel file:', error);
+    console.error('❌ Excel analysis failed:', error);
     return {
       sheetNames: [],
       columnInfo: {},
@@ -91,7 +164,7 @@ function analyzeExcelFile(filePath) {
   }
 }
 
-// GET /api/excel-files - Get all Excel files
+// GET /api/excel-files - 获取所有Excel文件
 router.get('/', async (req, res) => {
   try {
     const { category, active, scenarioType, scopeType } = req.query;
@@ -102,12 +175,124 @@ router.get('/', async (req, res) => {
     if (scenarioType) query.scenarioType = scenarioType;
     if (scopeType) query.scopeType = scopeType;
     
+    console.log('🔍 Querying Excel files:', query);
     const files = await ExcelFile.find(query).sort({ createdAt: -1 });
+    console.log(`📋 Found ${files.length} Excel files`);
+    
     res.json(files);
   } catch (err) {
-    console.error('Failed to get Excel file list:', err);
-    res.status(500).json({ error: 'Failed to get Excel file list' });
+    console.error('❌ Failed to fetch Excel files:', err);
+    res.status(500).json({ error: '获取Excel文件列表失败', details: err.message });
   }
+});
+
+// POST /api/excel-files - 上传新的Excel文件
+router.post('/', upload.single('file'), handleMulterError, async (req, res) => {
+  let tempFilePath = null;
+  
+  console.log('📤 File upload request received');
+  console.log('📋 Request body fields:', Object.keys(req.body));
+  console.log('📎 File info:', req.file ? {
+    fieldname: req.file.fieldname,
+    originalname: req.file.originalname,
+    mimetype: req.file.mimetype,
+    size: req.file.size
+  } : 'No file received');
+  
+  try {
+    // 检查环境变量
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      throw new Error('Cloudinary 环境变量未配置。请检查 CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET');
+    }
+    
+    if (!req.file) {
+      console.log('❌ No file in request');
+      return res.status(400).json({ 
+        error: '请提供Excel文件',
+        code: 'NO_FILE_PROVIDED',
+        receivedFields: Object.keys(req.body)
+      });
+    }
+
+    tempFilePath = req.file.path;
+    const { title, description, category, tags } = req.body;
+    
+    console.log('📝 Form data:', { title, description, category, tags });
+    
+    // 分析Excel文件
+    console.log('📊 Starting Excel file analysis...');
+    const metadata = analyzeExcelFile(tempFilePath);
+    
+    // 上传到Cloudinary
+    console.log('☁️  Uploading to Cloudinary...');
+    const result = await cloudinary.uploader.upload(tempFilePath, {
+      folder: 'entyre/excel-files',
+      resource_type: 'raw',
+      public_id: `excel_${Date.now()}_${path.parse(req.file.originalname).name}`
+    });
+    
+    console.log('✅ Cloudinary upload successful:', result.secure_url);
+
+    // 创建数据库记录
+    console.log('💾 Creating database record...');
+    const newFile = new ExcelFile({
+      title: title || path.parse(req.file.originalname).name,
+      description: description || '',
+      category: category || 'analysis',
+      fileUrl: result.secure_url,
+      filePublicId: result.public_id,
+      originalName: req.file.originalname,
+      fileSize: req.file.size,
+      tags: tags ? tags.split(',').map(tag => tag.trim()).filter(tag => tag) : [],
+      metadata
+    });
+
+    const saved = await newFile.save();
+    
+    console.log('✅ Excel file uploaded successfully:', {
+      id: saved._id,
+      originalName: saved.originalName,
+      scenarioId: saved.getScenarioId?.() || 'unknown'
+    });
+    
+    res.status(201).json(saved);
+    
+  } catch (err) {
+    console.error('❌ Upload failed:', err);
+    res.status(400).json({ 
+      error: '上传Excel文件失败', 
+      details: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+  } finally {
+    // 清理临时文件
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      try {
+        await fs.promises.unlink(tempFilePath);
+        console.log('🗑️  Temporary file cleaned up');
+      } catch (unlinkError) {
+        console.error('⚠️  Failed to clean up temporary file:', unlinkError);
+      }
+    }
+  }
+});
+
+// 健康检查端点
+router.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    cloudinary: {
+      configured: !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)
+    },
+    mongodb: {
+      connected: require('mongoose').connection.readyState === 1
+    },
+    uploadsDir: {
+      exists: fs.existsSync(UPLOAD_DIR),
+      path: UPLOAD_DIR
+    }
+  });
 });
 
 // GET /api/excel-files/:id - Get single Excel file info
