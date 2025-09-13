@@ -13,7 +13,12 @@
     "security:audit": "npm audit",
     "security:fix": "npm audit fix"
   },
-  "keywords": ["cms", "entyre", "content-management", "api"],
+  "keywords": [
+    "cms",
+    "entyre",
+    "content-management",
+    "api"
+  ],
   "author": "ENTYRE Team",
   "license": "ISC",
   "description": "Backend API for ENTYRE Content Management System",

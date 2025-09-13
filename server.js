@@ -33,6 +33,9 @@ app.use('/images', express.static(path.join(__dirname, 'public/images')));
 app.use('/data', express.static(path.join(__dirname, 'data')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+const excelRoutes = require('./routes/excelFiles');
+app.use('/api/excel-files', excelRoutes);
+
 app.get('/', (req, res) => {
     res.send('Welcome to the ENTYRE backend API!');
 });
