@@ -7,7 +7,7 @@ const ExcelFile = require('../models/ExcelFiles');
 
 const router = express.Router();
 
-// 配置 Cloudinary（如果还没配置）
+// Cloudinary configuration (if not already configured)
 let cloudinary;
 try {
   cloudinary = require('cloudinary').v2;
@@ -21,14 +21,14 @@ try {
   console.error('❌ Cloudinary configuration failed:', error.message);
 }
 
-// 检查上传目录
+// Check upload directory
 const UPLOAD_DIR = path.join(__dirname, '../uploads');
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
   console.log('📁 Created uploads directory:', UPLOAD_DIR);
 }
 
-// 配置 multer 并添加详细日志
+// Multer configuration with detailed logging
 const upload = multer({ 
   dest: UPLOAD_DIR,
   fileFilter: (req, file, cb) => {
@@ -50,7 +50,7 @@ const upload = multer({
       cb(null, true);
     } else {
       console.log('❌ File type rejected:', file.mimetype);
-      cb(new Error(`不支持的文件类型: ${file.mimetype}. 只允许 Excel 文件 (.xlsx, .xls)`), false);
+      cb(new Error(`Unsupported file type: ${file.mimetype}. Only Excel files (.xlsx, .xls) are allowed.`), false);
     }
   },
   limits: {
@@ -58,7 +58,7 @@ const upload = multer({
   }
 });
 
-// 添加请求日志中间件
+// Request logging middleware
 router.use((req, res, next) => {
   console.log(`📨 ${req.method} ${req.originalUrl}`, {
     headers: {
@@ -70,37 +70,37 @@ router.use((req, res, next) => {
   next();
 });
 
-// Multer错误处理中间件
+// Multer error handling middleware
 const handleMulterError = (err, req, res, next) => {
   console.error('🚨 Multer error:', err);
   
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ 
-        error: '文件大小超过限制 (最大 10MB)',
+        error: 'File size exceeds limit (max 10MB)',
         code: 'FILE_SIZE_LIMIT'
       });
     }
     if (err.code === 'LIMIT_UNEXPECTED_FILE') {
       return res.status(400).json({ 
-        error: `意外的文件字段: ${err.field || 'unknown'}`,
+        error: `Unexpected file field: ${err.field || 'unknown'}`,
         code: 'UNEXPECTED_FILE_FIELD',
         expected: 'file'
       });
     }
     if (err.code === 'LIMIT_FILE_COUNT') {
       return res.status(400).json({ 
-        error: '文件数量超过限制',
+        error: 'File count exceeds limit',
         code: 'FILE_COUNT_LIMIT'
       });
     }
     return res.status(400).json({ 
-      error: `文件上传错误: ${err.message}`,
+      error: `File upload error: ${err.message}`,
       code: err.code
     });
   }
   
-  // 自定义错误（如文件类型不匹配）
+  // Custom errors (e.g., file type mismatch)
   if (err.message) {
     return res.status(400).json({ 
       error: err.message,
@@ -111,7 +111,7 @@ const handleMulterError = (err, req, res, next) => {
   next(err);
 };
 
-// 工具函数：分析 Excel 文件
+// Utility function: analyze Excel file
 function analyzeExcelFile(filePath) {
   try {
     console.log('📊 Analyzing Excel file:', filePath);
@@ -164,7 +164,7 @@ function analyzeExcelFile(filePath) {
   }
 }
 
-// GET /api/excel-files - 获取所有Excel文件
+// GET /api/excel-files - Get all Excel files
 router.get('/', async (req, res) => {
   try {
     const { category, active, scenarioType, scopeType } = req.query;
@@ -182,11 +182,11 @@ router.get('/', async (req, res) => {
     res.json(files);
   } catch (err) {
     console.error('❌ Failed to fetch Excel files:', err);
-    res.status(500).json({ error: '获取Excel文件列表失败', details: err.message });
+    res.status(500).json({ error: 'Failed to get Excel file list', details: err.message });
   }
 });
 
-// POST /api/excel-files - 上传新的Excel文件
+// POST /api/excel-files - Upload new Excel file
 router.post('/', upload.single('file'), handleMulterError, async (req, res) => {
   let tempFilePath = null;
   
@@ -200,15 +200,15 @@ router.post('/', upload.single('file'), handleMulterError, async (req, res) => {
   } : 'No file received');
   
   try {
-    // 检查环境变量
+    // Check environment variables
     if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-      throw new Error('Cloudinary 环境变量未配置。请检查 CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET');
+      throw new Error('Cloudinary environment variables are not configured. Please check CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET');
     }
     
     if (!req.file) {
       console.log('❌ No file in request');
       return res.status(400).json({ 
-        error: '请提供Excel文件',
+        error: 'Please provide an Excel file',
         code: 'NO_FILE_PROVIDED',
         receivedFields: Object.keys(req.body)
       });
@@ -219,11 +219,11 @@ router.post('/', upload.single('file'), handleMulterError, async (req, res) => {
     
     console.log('📝 Form data:', { title, description, category, tags });
     
-    // 分析Excel文件
+    // Analyze Excel file
     console.log('📊 Starting Excel file analysis...');
     const metadata = analyzeExcelFile(tempFilePath);
     
-    // 上传到Cloudinary
+    // Upload to Cloudinary
     console.log('☁️  Uploading to Cloudinary...');
     const result = await cloudinary.uploader.upload(tempFilePath, {
       folder: 'entyre/excel-files',
@@ -233,7 +233,7 @@ router.post('/', upload.single('file'), handleMulterError, async (req, res) => {
     
     console.log('✅ Cloudinary upload successful:', result.secure_url);
 
-    // 创建数据库记录
+    // Create database record
     console.log('💾 Creating database record...');
     const newFile = new ExcelFile({
       title: title || path.parse(req.file.originalname).name,
@@ -260,12 +260,12 @@ router.post('/', upload.single('file'), handleMulterError, async (req, res) => {
   } catch (err) {
     console.error('❌ Upload failed:', err);
     res.status(400).json({ 
-      error: '上传Excel文件失败', 
+      error: 'Failed to upload Excel file', 
       details: err.message,
       stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
     });
   } finally {
-    // 清理临时文件
+    // Clean up temporary file
     if (tempFilePath && fs.existsSync(tempFilePath)) {
       try {
         await fs.promises.unlink(tempFilePath);
@@ -277,7 +277,7 @@ router.post('/', upload.single('file'), handleMulterError, async (req, res) => {
   }
 });
 
-// 健康检查端点
+// Health check endpoint
 router.get('/health', (req, res) => {
   res.json({
     status: 'ok',
