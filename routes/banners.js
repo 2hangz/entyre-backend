@@ -37,7 +37,7 @@ router.get('/:id', async (req, res) => {
 //create new banner
 router.post('/', upload.single('file'), async (req, res) => {
   try {
-    const { title, image } = req.body;
+    const { title, image, active } = req.body;
     let imageUrl = null;
     let imagePublicId = null;
 
@@ -51,7 +51,13 @@ router.post('/', upload.single('file'), async (req, res) => {
       await fs.promises.unlink(req.file.path);
     }
 
-    const newBanner = new Banner({ title, image, imageUrl, imagePublicId });
+    let activeValue = active;
+    if (typeof active === 'string') {
+      if (active.toLowerCase() === 'true') activeValue = true;
+      else if (active.toLowerCase() === 'false') activeValue = false;
+    }
+
+    const newBanner = new Banner({ title, image, imageUrl, imagePublicId, active: activeValue });
     const saved = await newBanner.save();
     res.status(201).json(saved);
   } catch (err) {
@@ -63,7 +69,7 @@ router.post('/', upload.single('file'), async (req, res) => {
 //edit banner content
 router.put('/:id', upload.single('file'), async (req, res) => {
   try {
-    const { title, image } = req.body;
+    const { title, image, active } = req.body;
     const banner = await Banner.findById(req.params.id);
     if (!banner) return res.status(404).json({ error: 'Banner not found' });
 
@@ -83,6 +89,16 @@ router.put('/:id', upload.single('file'), async (req, res) => {
 
     banner.title = title ?? banner.title;
     banner.image = image ?? banner.image;
+
+    let activeValue = active;
+    if (typeof active !== 'undefined') {
+      if (typeof active === 'string') {
+        if (active.toLowerCase() === 'true') activeValue = true;
+        else if (active.toLowerCase() === 'false') activeValue = false;
+      }
+      banner.active = activeValue;
+    }
+
     const updated = await banner.save();
     res.json(updated);
   } catch (err) {

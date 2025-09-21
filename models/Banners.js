@@ -12,6 +12,9 @@ const bannerSchema = new mongoose.Schema({
   },
   imagePublicId:{
     type: String
+  },
+  active: {
+    type: Boolean, default: true
   }
 }, { timestamps: true });
 
