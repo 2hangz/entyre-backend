@@ -53,6 +53,14 @@ const ImageSchema = new mongoose.Schema({
   link: { type: String, default: '' }
 }, { _id: false });
 
+// Banner schema for banner carousel sections
+const BannerSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  imageUrl: { type: String, required: true },
+  link: { type: String, default: '' },
+  order: { type: Number, default: 0 }
+}, { _id: false });
+
 const AnimationSchema = new mongoose.Schema({
   enabled: { type: Boolean, default: false },
   animationType: { type: String, default: 'fadeIn' },
@@ -107,6 +115,7 @@ const HomeContentSectionSchema = new mongoose.Schema(
     type: {
       type: String,
       enum: [
+        'banner-carousel',
         'text', 
         'key-value', 
         'image', 
@@ -142,6 +151,7 @@ const HomeContentSectionSchema = new mongoose.Schema(
     stats: [StatSchema],
     steps: [StepSchema],
     images: [ImageSchema],
+    banners: [BannerSchema], // Add banners field for banner-carousel sections
     videoUrl: { type: String, trim: true, default: '' },
     videoThumbnail: { type: String, trim: true, default: '' },
     videoPlatform: { type: String, default: 'youtube', enum: ['youtube', 'vimeo', 'custom'] },

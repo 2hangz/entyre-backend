@@ -27,6 +27,7 @@ const validateSectionDataPost = (req, res, next) => {
     stats,
     steps,
     images,
+    banners,
     videoUrl,
     accordionItems,
     timelineItems,
@@ -56,6 +57,7 @@ const validateSectionDataPost = (req, res, next) => {
   }
 
   const validTypes = [
+    'banner-carousel',
     'text', 'key-value', 'image', 'card', 'hero', 'features-grid',
     'stats', 'cta-section', 'process-steps', 'testimonial', 'gallery',
     'video', 'accordion', 'timeline', 'pricing', 'team', 'contact-form',
@@ -93,6 +95,7 @@ const validateSectionDataPost = (req, res, next) => {
 const validateSectionDataPut = (req, res, next) => {
   const errors = [];
   const validTypes = [
+    'banner-carousel',
     'text', 'key-value', 'image', 'card', 'hero', 'features-grid',
     'stats', 'cta-section', 'process-steps', 'testimonial', 'gallery',
     'video', 'accordion', 'timeline', 'pricing', 'team', 'contact-form',
@@ -172,7 +175,7 @@ router.post('/', validateSectionDataPost, async (req, res) => {
 
     const {
       title, content, type, layout, typography, heroSubtitle, heroImage, heroButtons,
-      features, stats, steps, images, videoUrl, videoThumbnail, videoPlatform,
+      features, stats, steps, images, banners, videoUrl, videoThumbnail, videoPlatform,
       accordionItems, timelineItems, cardButtonText, cardButtonLink, cardButtonStyle,
       animation, displayConditions, seo, isVisible, customCSS, customJS
     } = req.body;
@@ -195,6 +198,7 @@ router.post('/', validateSectionDataPost, async (req, res) => {
     if (stats && Array.isArray(stats)) docData.stats = stats;
     if (steps && Array.isArray(steps)) docData.steps = steps;
     if (images && Array.isArray(images)) docData.images = images;
+    if (banners && Array.isArray(banners)) docData.banners = banners;
     if (videoUrl !== undefined) docData.videoUrl = toStr(videoUrl);
     if (videoThumbnail !== undefined) docData.videoThumbnail = toStr(videoThumbnail);
     if (videoPlatform !== undefined) docData.videoPlatform = videoPlatform;
@@ -229,10 +233,11 @@ router.put('/:id', validateSectionDataPut, async (req, res) => {
     if (req.body.type !== undefined) updateFields.type = req.body.type;
     if (req.body.layout !== undefined) updateFields.layout = req.body.layout;
     if (req.body.typography !== undefined) updateFields.typography = req.body.typography;
+    if (req.body.sectionIndex !== undefined) updateFields.sectionIndex = parseInt(req.body.sectionIndex, 10);
 
     const typeSpecificFields = [
       'heroSubtitle', 'heroImage', 'heroButtons', 'features', 'stats', 'steps',
-      'images', 'videoUrl', 'videoThumbnail', 'videoPlatform', 'accordionItems',
+      'images', 'banners', 'videoUrl', 'videoThumbnail', 'videoPlatform', 'accordionItems',
       'timelineItems', 'cardButtonText', 'cardButtonLink', 'cardButtonStyle'
     ];
     typeSpecificFields.forEach(field => {
@@ -275,8 +280,7 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// Alternative approach - Sequential updates to avoid duplicate keys:
-
+// PATCH reorder - Fixed version
 router.patch('/reorder', async (req, res) => {
   try {
     const { sections } = req.body;
@@ -285,43 +289,35 @@ router.patch('/reorder', async (req, res) => {
       return res.status(400).json({ error: 'Sections must be an array' });
     }
 
-    console.log('Reordering sections sequentially:', sections.map(s => ({ _id: s._id, sectionIndex: s.sectionIndex })));
+    console.log('Reordering sections:', sections.map(s => ({ _id: s._id, sectionIndex: s.sectionIndex })));
 
-    // Sequential update approach - update one by one to avoid duplicates
-    const results = [];
-    for (let i = 0; i < sections.length; i++) {
-      const { _id, sectionIndex } = sections[i];
-      
+    // Strategy: Use temporary negative values to avoid duplicates
+    // First, set all sections to temporary negative values
+    const tempUpdatePromises = sections.map(({ _id }, index) => {
       if (!_id) {
-        throw new Error(`Section at index ${i} is missing _id`);
+        throw new Error('All sections must have valid _id');
       }
+      return HomeContentSection.findByIdAndUpdate(
+        _id,
+        { sectionIndex: -(index + 1000), updatedAt: new Date() }, // Use negative temp values
+        { new: true }
+      );
+    });
 
-      // Find the highest current sectionIndex to use as temporary value
-      const maxSection = await HomeContentSection.findOne().sort({ sectionIndex: -1 });
-      const tempIndex = (maxSection?.sectionIndex || 0) + 1000 + i;
+    await Promise.all(tempUpdatePromises);
+    console.log('Temp values set successfully');
 
-      // First update to temporary value
-      await HomeContentSection.findByIdAndUpdate(_id, { 
-        sectionIndex: tempIndex, 
-        updatedAt: new Date() 
-      });
-
-      console.log(`Updated ${_id} to temp index ${tempIndex}`);
-    }
-
-    // Now update to final values
-    for (let i = 0; i < sections.length; i++) {
-      const { _id, sectionIndex } = sections[i];
-      
-      const updated = await HomeContentSection.findByIdAndUpdate(
+    // Then update to the correct positive values
+    const finalUpdatePromises = sections.map(({ _id, sectionIndex }) => {
+      return HomeContentSection.findByIdAndUpdate(
         _id,
         { sectionIndex, updatedAt: new Date() },
         { new: true, runValidators: true }
       );
-      
-      results.push(updated);
-      console.log(`Final update ${_id} to index ${sectionIndex}`);
-    }
+    });
+
+    const results = await Promise.all(finalUpdatePromises);
+    console.log('Final update results:', results.map(r => ({ _id: r._id, sectionIndex: r.sectionIndex })));
 
     // Fetch all sections in the new order
     const updatedSections = await HomeContentSection.find()
@@ -347,4 +343,5 @@ router.patch('/reorder', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 module.exports = router;
