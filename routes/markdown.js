@@ -164,7 +164,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST new section
+// POST
 router.post('/', validateSectionDataPost, async (req, res) => {
   try {
     const maxSection = await HomeContentSection.findOne().sort({ sectionIndex: -1 });
@@ -279,10 +279,12 @@ router.delete('/:id', async (req, res) => {
 router.patch('/reorder', async (req, res) => {
   try {
     const { sections } = req.body;
-    if (!Array.isArray(sections)) return res.status(400).json({ error: 'sections must be an array' });
+    if (!Array.isArray(sections)) 
+      return res.status(400).json({ error: 'sections must be an array' });
 
     const updatePromises = sections.map((s, i) =>
-      HomeContentSection.findByIdAndUpdate(s._id, { sectionIndex: i + 1, updatedAt: new Date() }, { new: true })
+      HomeContentSection.findByIdAndUpdate(s._id, 
+        { sectionIndex: i, updatedAt: new Date() }, { new: true })
     );
     const updatedSections = await Promise.all(updatePromises);
     res.json({ message: 'Sections reordered successfully', sections: updatedSections.sort((a, b) => a.sectionIndex - b.sectionIndex) });
