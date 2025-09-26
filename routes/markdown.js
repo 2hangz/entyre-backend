@@ -276,24 +276,57 @@ router.delete('/:id', async (req, res) => {
 });
 
 // PATCH reorder
+// Replace the PATCH reorder section at the end of your markdown.js routes file with this:
+
+// PATCH reorder - CORRECTED VERSION
 router.patch('/reorder', async (req, res) => {
   try {
     const { sections } = req.body;
+    
     if (!Array.isArray(sections)) {
-      return res.status(400).json({ error: 'Invalid sections data' });
+      return res.status(400).json({ error: 'Sections must be an array' });
     }
 
-    for (let i = 0; i < sections.length; i++) {
-      await Markdown.findByIdAndUpdate(sections[i]._id, {
-        sectionIndex: i + 1
-      });
-    }
+    console.log('Reordering sections:', sections.map(s => ({ _id: s._id, sectionIndex: s.sectionIndex })));
 
-    const updated = await Markdown.find().sort({ sectionIndex: 1 });
-    res.json({ sections: updated });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to reorder sections' });
+    // Update each section's sectionIndex
+    const updatePromises = sections.map(({ _id, sectionIndex }) => {
+      if (!_id) {
+        console.error('Section missing _id:', { _id, sectionIndex });
+        throw new Error('All sections must have valid _id');
+      }
+      return HomeContentSection.findByIdAndUpdate(
+        _id,
+        { sectionIndex, updatedAt: new Date() },
+        { new: true, runValidators: true }
+      );
+    });
+
+    const results = await Promise.all(updatePromises);
+    console.log('Update results:', results.map(r => ({ _id: r._id, sectionIndex: r.sectionIndex })));
+
+    // Fetch all sections in the new order
+    const updatedSections = await HomeContentSection.find()
+      .sort({ sectionIndex: 1 });
+
+    const formattedSections = updatedSections.map(s => {
+      const obj = s.toObject();
+      if (!obj.layout) obj.layout = {};
+      if (!obj.typography) obj.typography = {};
+      if (!obj.animation) obj.animation = {};
+      if (!obj.displayConditions) obj.displayConditions = {};
+      if (!obj.seo) obj.seo = {};
+      return obj;
+    });
+
+    res.json({ 
+      success: true, 
+      sections: formattedSections 
+    });
+
+  } catch (error) {
+    console.error('Reorder error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
