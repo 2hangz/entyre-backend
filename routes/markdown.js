@@ -275,10 +275,8 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// PATCH reorder
-// Replace the PATCH reorder section at the end of your markdown.js routes file with this:
+// Alternative approach - Sequential updates to avoid duplicate keys:
 
-// PATCH reorder - CORRECTED VERSION
 router.patch('/reorder', async (req, res) => {
   try {
     const { sections } = req.body;
@@ -287,23 +285,43 @@ router.patch('/reorder', async (req, res) => {
       return res.status(400).json({ error: 'Sections must be an array' });
     }
 
-    console.log('Reordering sections:', sections.map(s => ({ _id: s._id, sectionIndex: s.sectionIndex })));
+    console.log('Reordering sections sequentially:', sections.map(s => ({ _id: s._id, sectionIndex: s.sectionIndex })));
 
-    // Update each section's sectionIndex
-    const updatePromises = sections.map(({ _id, sectionIndex }) => {
+    // Sequential update approach - update one by one to avoid duplicates
+    const results = [];
+    for (let i = 0; i < sections.length; i++) {
+      const { _id, sectionIndex } = sections[i];
+      
       if (!_id) {
-        console.error('Section missing _id:', { _id, sectionIndex });
-        throw new Error('All sections must have valid _id');
+        throw new Error(`Section at index ${i} is missing _id`);
       }
-      return HomeContentSection.findByIdAndUpdate(
+
+      // Find the highest current sectionIndex to use as temporary value
+      const maxSection = await HomeContentSection.findOne().sort({ sectionIndex: -1 });
+      const tempIndex = (maxSection?.sectionIndex || 0) + 1000 + i;
+
+      // First update to temporary value
+      await HomeContentSection.findByIdAndUpdate(_id, { 
+        sectionIndex: tempIndex, 
+        updatedAt: new Date() 
+      });
+
+      console.log(`Updated ${_id} to temp index ${tempIndex}`);
+    }
+
+    // Now update to final values
+    for (let i = 0; i < sections.length; i++) {
+      const { _id, sectionIndex } = sections[i];
+      
+      const updated = await HomeContentSection.findByIdAndUpdate(
         _id,
         { sectionIndex, updatedAt: new Date() },
         { new: true, runValidators: true }
       );
-    });
-
-    const results = await Promise.all(updatePromises);
-    console.log('Update results:', results.map(r => ({ _id: r._id, sectionIndex: r.sectionIndex })));
+      
+      results.push(updated);
+      console.log(`Final update ${_id} to index ${sectionIndex}`);
+    }
 
     // Fetch all sections in the new order
     const updatedSections = await HomeContentSection.find()
@@ -329,5 +347,4 @@ router.patch('/reorder', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 module.exports = router;
