@@ -280,27 +280,20 @@ router.patch('/reorder', async (req, res) => {
   try {
     const { sections } = req.body;
     if (!Array.isArray(sections)) {
-      return res.status(400).json({ error: 'sections must be an array' });
+      return res.status(400).json({ error: 'Invalid sections data' });
     }
-    
-    const ops = sections.map((s, i) => ({
-      updateOne: {
-        filter: { _id: s._id },
-        update: { $set: { sectionIndex: i + 1, updatedAt: new Date() } }
-      }
-    }));
 
-    await HomeContentSection.bulkWrite(ops);
+    for (let i = 0; i < sections.length; i++) {
+      await Markdown.findByIdAndUpdate(sections[i]._id, {
+        sectionIndex: i + 1
+      });
+    }
 
-    const updatedSections = await HomeContentSection.find().sort({ sectionIndex: 1 });
-
-    res.json({
-      message: 'Sections reordered successfully',
-      sections: updatedSections
-    });
+    const updated = await Markdown.find().sort({ sectionIndex: 1 });
+    res.json({ sections: updated });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Error reordering sections', message: err.message });
+    res.status(500).json({ error: 'Failed to reorder sections' });
   }
 });
 

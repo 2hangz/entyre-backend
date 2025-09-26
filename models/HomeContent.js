@@ -90,7 +90,7 @@ const HomeContentSectionSchema = new mongoose.Schema(
   {
     sectionIndex: {
       type: Number,
-      required: true,
+      unique: true,
       index: true
     },
     title: {
