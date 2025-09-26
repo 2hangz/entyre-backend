@@ -279,16 +279,27 @@ router.delete('/:id', async (req, res) => {
 router.patch('/reorder', async (req, res) => {
   try {
     const { sections } = req.body;
-    if (!Array.isArray(sections)) 
+    if (!Array.isArray(sections)) {
       return res.status(400).json({ error: 'sections must be an array' });
+    }
+    
+    const ops = sections.map((s, i) => ({
+      updateOne: {
+        filter: { _id: s._id },
+        update: { $set: { sectionIndex: i + 1, updatedAt: new Date() } }
+      }
+    }));
 
-    const updatePromises = sections.map((s, i) =>
-      HomeContentSection.findByIdAndUpdate(s._id, 
-        { sectionIndex: i + 1, updatedAt: new Date() }, { new: true })
-    );
-    const updatedSections = await Promise.all(updatePromises);
-    res.json({ message: 'Sections reordered successfully', sections: updatedSections.sort((a, b) => a.sectionIndex - b.sectionIndex) });
+    await HomeContentSection.bulkWrite(ops);
+
+    const updatedSections = await HomeContentSection.find().sort({ sectionIndex: 1 });
+
+    res.json({
+      message: 'Sections reordered successfully',
+      sections: updatedSections
+    });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Error reordering sections', message: err.message });
   }
 });
