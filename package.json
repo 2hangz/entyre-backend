@@ -11,13 +11,16 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "security:audit": "npm audit",
-    "security:fix": "npm audit fix"
+    "security:fix": "npm audit fix",
+    "generate-password": "node generate-password.js"
   },
   "keywords": [
     "cms",
     "entyre",
     "content-management",
-    "api"
+    "api",
+    "jwt",
+    "authentication"
   ],
   "author": "ENTYRE Team",
   "license": "ISC",
@@ -28,6 +31,7 @@
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
+    "bcryptjs": "^3.0.2",
     "cloudinary": "^2.7.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.0",
