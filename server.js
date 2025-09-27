@@ -7,14 +7,12 @@ const PORT = 3001;
 require('dotenv').config();
 
 
-//app.use(cors());
+app.use(cors({
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.static('.'));
 
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true
-}));
 
 const articleRoutes = require('./routes/articles');
 const videoRoutes = require('./routes/videos');
