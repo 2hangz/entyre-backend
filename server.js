@@ -6,7 +6,6 @@ const app = express();
 const PORT = 3001;
 require('dotenv').config();
 
-
 app.use(cors({
   credentials: true
 }));

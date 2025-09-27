@@ -1,8 +1,6 @@
-// controllers/authController.js
 const User = require('../models/User');
 const { generateToken, verifyToken } = require('../utils/jwt');
 
-// Record of failed login attempts (use Redis in production)
 const loginAttempts = new Map();
 
 class AuthController {

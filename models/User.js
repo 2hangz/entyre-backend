@@ -4,7 +4,7 @@ const users = [
   {
     id: 1,
     username: 'admin',
-    passwordHash: '$2b$10$8K1p5UXVwJQQ8xqvRJLUOeu.Zb5KQD5B1mY3aP4JqG8KZ7c2C3yVa',
+    passwordHash: '$2b$10$w3ac9IxM4r1UlnIRH1bQJ..28qRmWI1CMToND6rU92Zq.mvXFRfVu',
     role: 'admin',
     createdAt: new Date(),
     lastLogin: null
@@ -25,8 +25,6 @@ class User {
 
   static async findById(id) {
     try {
-      // In a real project, this should be a database query
-      // const user = await db.query('SELECT * FROM users WHERE id = ?', [id]);
       const user = users.find(u => u.id === parseInt(id));
       return user || null;
     } catch (error) {
