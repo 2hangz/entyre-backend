@@ -1,12 +1,11 @@
-// utils/jwt.js
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key-change-this-in-production';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
 /**
- * 生成JWT token
- * @param {Object} payload - 要编码的数据
+ * Generate a JWT token
+ * @param {Object} payload - Data to encode
  * @returns {string} JWT token
  */
 const generateToken = (payload) => {
@@ -17,14 +16,14 @@ const generateToken = (payload) => {
       audience: 'entyre-users'
     });
   } catch (error) {
-    throw new Error('生成token失败');
+    throw new Error('Failed to generate token');
   }
 };
 
 /**
- * 验证JWT token
- * @param {string} token - 要验证的token
- * @returns {Object} 解码后的数据
+ * Verify a JWT token
+ * @param {string} token - Token to verify
+ * @returns {Object} Decoded data
  */
 const verifyToken = (token) => {
   try {
@@ -33,20 +32,20 @@ const verifyToken = (token) => {
       audience: 'entyre-users'
     });
   } catch (error) {
-    throw error; // 让调用者处理具体的错误类型
+    throw error; // Let the caller handle the specific error type
   }
 };
 
 /**
- * 解码token（不验证签名，仅用于获取信息）
- * @param {string} token - 要解码的token
- * @returns {Object} 解码后的数据
+ * Decode a token (does not verify signature, only for extracting information)
+ * @param {string} token - Token to decode
+ * @returns {Object} Decoded data
  */
 const decodeToken = (token) => {
   try {
     return jwt.decode(token);
   } catch (error) {
-    throw new Error('解码token失败');
+    throw new Error('Failed to decode token');
   }
 };
 
